@@ -19,6 +19,11 @@ func ActiveZipOnResponse() {
 	activeZipOnResponse = true
 }
 
+func RespondDefaultError(w http.ResponseWriter, status int) {
+	w.WriteHeader(status)
+	w.Write([]byte(""))
+}
+
 // RespondJson - send json result
 func RespondJson(w http.ResponseWriter, resp interface{}, status int) {
 	w.Header().Add("Content-Type", "application/json")

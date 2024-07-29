@@ -17,6 +17,13 @@ type Config struct {
 	SecOptions   secure.Options
 	Cors         cors
 	Cache        cache
+
+	Pow pow
+}
+
+type pow struct {
+	NonceValidity     int
+	DefaultPrefixSize int
 }
 
 type cache struct {
