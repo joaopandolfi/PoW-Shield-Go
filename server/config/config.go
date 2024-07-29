@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/gorilla/sessions"
 	"github.com/unrolled/secure"
 )
 
@@ -18,7 +19,8 @@ type Config struct {
 	Cors         cors
 	Cache        cache
 
-	Pow pow
+	Pow     pow
+	Session session
 }
 
 type pow struct {
@@ -40,6 +42,12 @@ type redis struct {
 type cors struct {
 	Active   bool
 	Enableds string
+}
+
+type session struct {
+	Name    string
+	Store   *sessions.CookieStore
+	Options *sessions.Options
 }
 
 var cfg *Config
@@ -68,6 +76,15 @@ func Load() error {
 			ContentTypeNosniff: true,
 			SSLHost:            "locahost:443",
 			SSLRedirect:        false,
+		},
+		Session: session{
+			Name:  "SESSION_NAME",
+			Store: sessions.NewCookieStore([]byte("SESSION_STORE")),
+			Options: &sessions.Options{
+				Path:     "/",
+				MaxAge:   3600 * 2, //86400 * 7,
+				HttpOnly: true,
+			},
 		},
 	}
 
