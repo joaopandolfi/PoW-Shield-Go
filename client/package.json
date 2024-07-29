@@ -1,0 +1,18 @@
+{
+    "name": "pow-shield-go",
+    "version": "0.0.1",
+    "private": true,
+    "scripts": {
+        "build": "echo 'browserify' && browserify ./solver/bundle.js -t uglifyify | uglifyjs > ./public/javascripts/bundle.min.js && echo 'Sucess!'",
+        "build-beauty": "echo 'browserify' && browserify ./solver/bundle.js -o ./public/javascripts/bundle.min.js && echo 'Sucess!'"
+    },
+    "dependencies": {
+        "create-hash": "1.2.0"
+    },
+    "devDependencies": {
+        "@types/create-hash": "1.2.6",
+        "browserify": "17.0.0",
+        "uglify-js": "3.19.0",
+        "uglifyify": "5.0.2"
+    }
+}
