@@ -64,7 +64,7 @@ func (c *controller) challenge(w http.ResponseWriter, r *http.Request) {
 
 // verify - verify PoW challenge
 func (c *controller) verify(w http.ResponseWriter, r *http.Request) {
-	lastSession := c.getSession(r)
+	session := c.getSession(r)
 
 	b, err := io.ReadAll(r.Body)
 	if err != nil {
@@ -95,20 +95,14 @@ func (c *controller) verify(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	success, err := c.verifier.Verify(r.Context(), lastSession, data, payload.Difficulty, payload.Prefix)
+	success, err := c.verifier.Verify(r.Context(), session, data, payload.Difficulty, payload.Prefix)
 	if err != nil {
 		log.Println("[ERROR][verify] INVALID NONCE:", err.Error())
 		handler.RespondDefaultError(w, http.StatusNotAcceptable)
 		return
 	}
 
-	session := &domain.Session{
-		Authorized: success,
-		Prefix:     payload.Prefix,
-		Buffer:     payload.Buffer,
-		Difficulty: lastSession.Difficulty,
-		ID:         lastSession.ID,
-	}
+	session.RegisterNewChallenge(success, payload.Prefix, payload.Buffer)
 
 	handler.SetSession(w, r, session)
 	handler.SetCookie(w, session.ToCookie())

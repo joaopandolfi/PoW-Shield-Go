@@ -6,22 +6,31 @@ import (
 	"pow-shield-go/config"
 	"pow-shield-go/services/utils"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 )
 
 type Session struct {
-	Authorized bool
-	Difficulty int
-	Prefix     string
-	Buffer     string
-	ID         uuid.UUID
+	Authorized  bool
+	Difficulty  int
+	Prefix      string
+	Buffer      string
+	Requests    int
+	Challenges  int
+	CreatedAt   time.Time
+	LastRequest time.Time
+	ID          uuid.UUID
 }
 
 func NewSession() *Session {
 	return &Session{
-		ID:         uuid.New(),
-		Difficulty: 0,
+		ID:          uuid.New(),
+		Difficulty:  0,
+		Requests:    0,
+		Challenges:  0,
+		CreatedAt:   time.Now(),
+		LastRequest: time.Now(),
 	}
 }
 
@@ -51,4 +60,16 @@ func (s *Session) ToCookie() *Cookie {
 
 func (s *Session) ValidSessionState(state string) bool {
 	return !(strings.Contains(state, CHALLENGE_STATUS_ERROR_COUNT) || state == CHALLENGE_STATUS_TO_SOLVE)
+}
+
+func (s *Session) ContabilizeNewRequest() {
+	s.Requests += 1
+	s.LastRequest = time.Now()
+}
+
+func (s *Session) RegisterNewChallenge(success bool, prefix, buffer string) {
+	s.Authorized = success
+	s.Prefix = prefix
+	s.Buffer = buffer
+	s.Challenges += 1
 }
