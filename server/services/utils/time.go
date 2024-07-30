@@ -23,7 +23,7 @@ func ReadTimestamp(buffer []byte, off int) uint64 {
 }
 
 func Now() uint64 {
-	return uint64(time.Now().UnixNano())
+	return uint64(time.Now().UnixMilli())
 }
 
 func AbsDiff(a, b uint64) uint64 {
