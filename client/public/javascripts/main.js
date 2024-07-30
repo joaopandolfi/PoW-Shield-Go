@@ -1,17 +1,22 @@
 const runSolver = async (difficulty, prefix) => {
   const solver = new powSolver() // skipcq: JS-0125
   const nonce = await solver.solve(difficulty, prefix)
+  let strNonce = nonce.toString('hex')
   document.querySelector('.calculating td.blink').innerHTML = 'V'
   document.querySelector('.calculating td.blink').classList.remove('blink')
   document.querySelector('.submitting').style.display = 'table-row'
-  return nonce
+  return strNonce
 }
 
-const sendResult = async (nonce, redirect) => {
+const sendResult = async (difficulty,prefix,nonce, redirect) => {
   try {
-    const response = await fetch('/pow', {
+    body =  JSON.stringify({
+        difficulty:difficulty,
+        prefix:prefix,
+        buffer:nonce})
+    const response = await fetch(`${backend}/pow`, {
       method: 'POST',
-      body: JSON.stringify(nonce),
+      body: body,
     })
     window.responseStatus=response.status
     window.nonceSent=true
@@ -43,11 +48,27 @@ const sendResult = async (nonce, redirect) => {
   }
 }
 
-window.init = (difficulty, prefix, redirect) => {
+const getProblem = async ()=>{
+  const response = await fetch(`${backend}/pow`,{
+    method: 'GET'
+  })
+  if (response.status == 200) {
+    jsonResult =  await response.json()
+    initSolver(jsonResult.difficulty, jsonResult.prefix, "")
+  }
+}
+
+const initSolver = (difficulty, prefix, redirect) => {
   setTimeout(async () => {
     const nonce = await runSolver(difficulty, prefix)
     setTimeout(async () => {
-      await sendResult(nonce, redirect)
+      await sendResult(difficulty,prefix, nonce, redirect)
     }, 500)
   }, 1500)
+}
+
+window.init = () =>{
+  setTimeout(async () => {
+    await getProblem()
+  }, 100)
 }
