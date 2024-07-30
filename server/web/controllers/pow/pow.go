@@ -58,7 +58,6 @@ func (c *controller) verify(w http.ResponseWriter, r *http.Request) {
 		handler.RespondDefaultError(w, http.StatusBadRequest)
 		return
 	}
-	w.Header().Set("Access-Control-Allow-Origin", "*")
 	var payload verifyChallengePayload
 
 	err = json.Unmarshal(b, &payload)
@@ -89,18 +88,16 @@ func (c *controller) verify(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = handler.SetSession(w, r, &domain.Session{
+	session := &domain.Session{
 		Authorized: success,
 		Prefix:     payload.Prefix,
 		Buffer:     payload.Buffer,
 		Difficulty: payload.Difficulty,
-	})
-
-	if err != nil {
-		log.Println("[ERROR][verify] setting session", err.Error())
-		handler.RespondDefaultError(w, http.StatusConflict)
-		return
 	}
+
+	handler.SetCookie(w, session.ToCookie())
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.Header().Set("Access-Control-Allow-Credentials", "true")
 
 	handler.RespondJson(w, true, http.StatusOK)
 }

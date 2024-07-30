@@ -19,8 +19,15 @@ type Config struct {
 	Cors         cors
 	Cache        cache
 
+	ProtectedServer protectedServer
+
 	Pow     pow
 	Session session
+}
+
+type protectedServer struct {
+	Host           string
+	DefaultHeaders map[string]string
 }
 
 type pow struct {
@@ -79,17 +86,22 @@ func Load() error {
 			SSLRedirect:        false,
 		},
 		Session: session{
-			Name:  "SESSION_NAME",
+			Name:  "token-session",
 			Store: sessions.NewCookieStore([]byte("SESSION_STORE")),
 			Options: &sessions.Options{
 				Path:     "/",
 				MaxAge:   3600 * 2, //86400 * 7,
 				HttpOnly: true,
+				Secure:   true,
 			},
 		},
 		Pow: pow{
 			DefaultPrefixSize: 16,
 			NonceValidity:     15 * 1000, //miliseconds
+		},
+		ProtectedServer: protectedServer{
+			Host:           "http://localhost:3002",
+			DefaultHeaders: map[string]string{},
 		},
 	}
 

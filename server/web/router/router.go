@@ -3,7 +3,9 @@ package router
 import (
 	"pow-shield-go/config"
 	powServices "pow-shield-go/services/pow"
+	"pow-shield-go/web/controllers/health"
 	"pow-shield-go/web/controllers/pow"
+	"pow-shield-go/web/controllers/proxy"
 	"pow-shield-go/web/server"
 
 	"github.com/unrolled/secure"
@@ -27,6 +29,9 @@ func (r *Router) Setup() {
 	verifier := powServices.NewVerifier()
 
 	pow.New(generator, verifier).SetupRouter(r.createSubRouter("/pow"))
+	health.New().SetupRouter(r.s)
+	//static.New().SetupRouter(r.s)
+	proxy.New().SetupRouter(r.s)
 }
 
 // CreateSubRouter with path
