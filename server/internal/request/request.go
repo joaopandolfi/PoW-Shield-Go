@@ -24,7 +24,7 @@ func getTransport() *http.Transport {
 	return transport
 }
 
-func RequestWithHeader(method, url string, head map[string]string, data []byte) ([]byte, int, error) {
+func RequestWithHeader(method, url string, head map[string]string, data []byte) ([]byte, int, http.Header, error) {
 	client := &http.Client{Transport: getTransport()}
 
 	payloadData := bytes.NewBuffer(data)
@@ -33,7 +33,7 @@ func RequestWithHeader(method, url string, head map[string]string, data []byte) 
 		var compressedData bytes.Buffer
 		gzipBuff := gzip.NewWriter(&compressedData)
 		if _, err := gzipBuff.Write(data); err != nil {
-			return nil, http.StatusExpectationFailed, fmt.Errorf("gzipping body: %w", err)
+			return nil, http.StatusExpectationFailed, nil, fmt.Errorf("gzipping body: %w", err)
 		}
 		gzipBuff.Close()
 		payloadData = &compressedData
@@ -41,7 +41,7 @@ func RequestWithHeader(method, url string, head map[string]string, data []byte) 
 
 	req, err := http.NewRequest(method, url, payloadData)
 	if err != nil {
-		return nil, 0, fmt.Errorf("making requester: %w", err)
+		return nil, 0, nil, fmt.Errorf("making requester: %w", err)
 	}
 
 	//Setting Headers
@@ -55,7 +55,7 @@ func RequestWithHeader(method, url string, head map[string]string, data []byte) 
 		if resp != nil {
 			statusCode = resp.StatusCode
 		}
-		return nil, statusCode, fmt.Errorf("[RequestWithHeader] - Error on make %s request, URL: %s, DATA: %s , ERROR: %w", method, url, string(data), err)
+		return nil, statusCode, resp.Header, fmt.Errorf("[RequestWithHeader] - Error on make %s request, URL: %s, DATA: %s , ERROR: %w", method, url, string(data), err)
 	}
 
 	defer resp.Body.Close()
@@ -64,12 +64,12 @@ func RequestWithHeader(method, url string, head map[string]string, data []byte) 
 	if resp.Uncompressed && strings.Contains(resp.Header.Get("Content-Encoding"), "gzip") {
 		r, err := gzip.NewReader(resp.Body)
 		if err != nil {
-			return nil, http.StatusExpectationFailed, fmt.Errorf("reading gzip body: %w", err)
+			return nil, http.StatusExpectationFailed, resp.Header, fmt.Errorf("reading gzip body: %w", err)
 		}
 		var compressB bytes.Buffer
 		_, err = compressB.ReadFrom(r)
 		if err != nil {
-			return nil, http.StatusExpectationFailed, fmt.Errorf("reading gzip bytes: %w", err)
+			return nil, http.StatusExpectationFailed, resp.Header, fmt.Errorf("reading gzip bytes: %w", err)
 		}
 		r.Close()
 		b = compressB.Bytes()
@@ -77,10 +77,10 @@ func RequestWithHeader(method, url string, head map[string]string, data []byte) 
 	} else {
 		plainB, err := io.ReadAll(resp.Body)
 		if err != nil {
-			return b, resp.StatusCode, fmt.Errorf("[RequestWithHeader] - Error on Read Body result, URL: %s, DATA: %s , ERROR: %w", url, string(data), err)
+			return b, resp.StatusCode, resp.Header, fmt.Errorf("[RequestWithHeader] - Error on Read Body result, URL: %s, DATA: %s , ERROR: %w", url, string(data), err)
 		}
 		b = plainB
 	}
 
-	return b, resp.StatusCode, err
+	return b, resp.StatusCode, resp.Header, err
 }

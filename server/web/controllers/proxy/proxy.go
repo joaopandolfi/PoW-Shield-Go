@@ -11,6 +11,7 @@ import (
 	"pow-shield-go/web/controllers"
 	"pow-shield-go/web/handler"
 	"pow-shield-go/web/server"
+	"strings"
 )
 
 type controller struct {
@@ -27,41 +28,6 @@ func New() controllers.Controller {
 }
 
 func (s *controller) proxy(w http.ResponseWriter, r *http.Request) {
-	cookie, err := handler.GetCookie(r)
-	if err != nil {
-		log.Println("[ERROR][proxy] error on getting cookie", err.Error())
-		handler.RespondDefaultError(w, http.StatusForbidden)
-		return
-	}
-
-	if cookie == nil {
-		log.Println("[ERROR][proxy] invalid cookie")
-		handler.RespondDefaultError(w, http.StatusForbidden)
-		return
-	}
-
-	session := handler.GetSession(r)
-	if !session.Authorized {
-		log.Println("[ERROR][proxy] session not authorized")
-		handler.RespondDefaultError(w, http.StatusForbidden)
-		return
-	}
-
-	sessionStatus, _ := s.cache.Get(session.ID.String())
-	if sessionStatus == nil {
-		log.Println("[ERROR][proxy] cached session not found")
-		handler.RespondDefaultError(w, http.StatusForbidden)
-		return
-	}
-
-	status, _ := sessionStatus.(string)
-
-	if !session.ValidSessionState(status) {
-		log.Println("[ERROR][proxy] invalid session status", status)
-		handler.RespondDefaultError(w, http.StatusForbidden)
-		return
-	}
-
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
 		log.Println("[ERROR][proxy] reading body", err.Error())
@@ -69,20 +35,25 @@ func (s *controller) proxy(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.Header().Set("Access-Control-Allow-Origin", "*")
-	w.Header().Set("Access-Control-Allow-Credentials", "true")
+	for v, k := range config.Get().ProtectedServer.DefaultHeaders {
+		w.Header().Add(v, k)
+	}
 
 	redirectHost := fmt.Sprintf("%s%s", config.Get().ProtectedServer.Host, r.URL.Path)
 
-	result, reqCode, err := request.RequestWithHeader(
+	result, reqCode, reqHeader, err := request.RequestWithHeader(
 		r.Method, redirectHost,
 		handler.Headers(r),
 		body,
 	)
 	if err != nil {
-		log.Println("[ERROR][proxy] procying request", err.Error())
+		log.Println("[ERROR][proxy] proxing request: ", err.Error())
 		handler.RespondDefaultError(w, http.StatusBadRequest)
 		return
+	}
+
+	for v, k := range reqHeader {
+		w.Header().Add(v, strings.Join(k, ","))
 	}
 
 	w.WriteHeader(reqCode)
