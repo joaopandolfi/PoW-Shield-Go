@@ -32,14 +32,27 @@ func New(generator pow.Generator, verifier pow.Verifier) controllers.Controller 
 	}
 }
 
+func (c *controller) getSession(r *http.Request) *domain.Session {
+	session := handler.GetSession(r)
+	if session == nil {
+		session = domain.NewSession()
+	}
+	return session
+}
+
 // challenge - get PoW challenge
 func (c *controller) challenge(w http.ResponseWriter, r *http.Request) {
-	challenge, err := c.generator.Problem(r.Context())
+	session := c.getSession(r)
+	session.Difficulty += 1
+
+	challenge, err := c.generator.Problem(r.Context(), session)
 	if err != nil {
 		log.Println("[ERROR][challenge] Generating prefix", err.Error())
 		handler.RespondDefaultError(w, http.StatusInternalServerError)
 		return
 	}
+
+	handler.SetSession(w, r, session)
 
 	var payload problemResponsePayload
 
@@ -51,6 +64,7 @@ func (c *controller) challenge(w http.ResponseWriter, r *http.Request) {
 
 // verify - verify PoW challenge
 func (c *controller) verify(w http.ResponseWriter, r *http.Request) {
+	lastSession := c.getSession(r)
 
 	b, err := io.ReadAll(r.Body)
 	if err != nil {
@@ -81,7 +95,7 @@ func (c *controller) verify(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	success, err := c.verifier.Verify(r.Context(), data, payload.Difficulty, payload.Prefix)
+	success, err := c.verifier.Verify(r.Context(), lastSession, data, payload.Difficulty, payload.Prefix)
 	if err != nil {
 		log.Println("[ERROR][verify] INVALID NONCE:", err.Error())
 		handler.RespondDefaultError(w, http.StatusNotAcceptable)
@@ -92,9 +106,11 @@ func (c *controller) verify(w http.ResponseWriter, r *http.Request) {
 		Authorized: success,
 		Prefix:     payload.Prefix,
 		Buffer:     payload.Buffer,
-		Difficulty: payload.Difficulty,
+		Difficulty: lastSession.Difficulty,
+		ID:         lastSession.ID,
 	}
 
+	handler.SetSession(w, r, session)
 	handler.SetCookie(w, session.ToCookie())
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 	w.Header().Set("Access-Control-Allow-Credentials", "true")

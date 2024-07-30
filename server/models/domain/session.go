@@ -5,6 +5,9 @@ import (
 	"fmt"
 	"pow-shield-go/config"
 	"pow-shield-go/services/utils"
+	"strings"
+
+	"github.com/google/uuid"
 )
 
 type Session struct {
@@ -12,6 +15,14 @@ type Session struct {
 	Difficulty int
 	Prefix     string
 	Buffer     string
+	ID         uuid.UUID
+}
+
+func NewSession() *Session {
+	return &Session{
+		ID:         uuid.New(),
+		Difficulty: 0,
+	}
 }
 
 func (s *Session) Wrap() string {
@@ -36,4 +47,8 @@ func (s *Session) ToCookie() *Cookie {
 		Secure:   config.Options.Secure,
 		Path:     "/",
 	}
+}
+
+func (s *Session) ValidSessionState(state string) bool {
+	return !(strings.Contains(state, CHALLENGE_STATUS_ERROR_COUNT) || state == CHALLENGE_STATUS_TO_SOLVE)
 }

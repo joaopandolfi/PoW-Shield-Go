@@ -6,28 +6,27 @@ import (
 	"log"
 	"net/http"
 	"pow-shield-go/config"
+	"pow-shield-go/internal/cache"
 	"pow-shield-go/internal/request"
 	"pow-shield-go/web/controllers"
 	"pow-shield-go/web/handler"
 	"pow-shield-go/web/server"
-	"time"
 )
 
 type controller struct {
-	s *server.Server
+	s     *server.Server
+	cache cache.Cache
 }
 
 // New controller
 func New() controllers.Controller {
 	return &controller{
-		s: nil,
+		s:     nil,
+		cache: cache.Get(),
 	}
 }
 
 func (s *controller) proxy(w http.ResponseWriter, r *http.Request) {
-	fmt.Println(r.URL.Path)
-	fmt.Println(r.Header)
-	fmt.Println(r.Method)
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
 		log.Println("[ERROR][proxy] reading body", err.Error())
@@ -48,8 +47,24 @@ func (s *controller) proxy(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if cookie.Expires.Before(time.Now()) {
-		log.Println("[ERROR][proxy] expired cookie")
+	session := handler.GetSession(r)
+	if !session.Authorized {
+		log.Println("[ERROR][proxy] session not authorized")
+		handler.RespondDefaultError(w, http.StatusForbidden)
+		return
+	}
+
+	sessionStatus, _ := s.cache.Get(session.ID.String())
+	if sessionStatus == nil {
+		log.Println("[ERROR][proxy] session not found")
+		handler.RespondDefaultError(w, http.StatusForbidden)
+		return
+	}
+
+	status, _ := sessionStatus.(string)
+
+	if !session.ValidSessionState(status) {
+		log.Println("[ERROR][proxy] invalid session status", status)
 		handler.RespondDefaultError(w, http.StatusForbidden)
 		return
 	}

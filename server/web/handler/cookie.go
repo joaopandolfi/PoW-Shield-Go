@@ -10,7 +10,6 @@ import (
 const TOKEN_COOKIE = "powShield"
 
 func SetCookie(w http.ResponseWriter, cookie *domain.Cookie) {
-	fmt.Println("SET", cookie)
 	expires := time.Now().AddDate(1, 0, 0)
 	http.SetCookie(w, &http.Cookie{
 		Name:     TOKEN_COOKIE,
@@ -23,7 +22,6 @@ func SetCookie(w http.ResponseWriter, cookie *domain.Cookie) {
 		SameSite: http.SameSiteLaxMode,
 		//SameSite: http.SameSiteDefaultMode,
 	})
-
 }
 
 func GetCookie(r *http.Request) (*domain.Cookie, error) {
