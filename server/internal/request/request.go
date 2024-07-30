@@ -55,7 +55,11 @@ func RequestWithHeader(method, url string, head map[string]string, data []byte) 
 		if resp != nil {
 			statusCode = resp.StatusCode
 		}
-		return nil, statusCode, resp.Header, fmt.Errorf("[RequestWithHeader] - Error on make %s request, URL: %s, DATA: %s , ERROR: %w", method, url, string(data), err)
+		respHeader := http.Header{}
+		if resp != nil {
+			respHeader = resp.Header
+		}
+		return nil, statusCode, respHeader, fmt.Errorf("[RequestWithHeader] - Error on make %s request, URL: %s, DATA: %s , ERROR: %w", method, url, string(data), err)
 	}
 
 	defer resp.Body.Close()

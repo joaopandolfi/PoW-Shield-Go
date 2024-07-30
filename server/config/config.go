@@ -132,7 +132,7 @@ func Load() error {
 		},
 		Static: static{
 			ServeStatic:  StrTo[bool](getEnvOrDefault("SERVE_STATIC", "true")),
-			StaticPath:   getEnvOrDefault("SERVE_STATIC_PATH", "/public/"),
+			StaticPath:   getEnvOrDefault("SERVE_STATIC_PATH", "/public"),
 			StaticFolder: getEnvOrDefault("SERVE_STATIC_FOLDER", "../client/public/"),
 		},
 		Waf: waf{
