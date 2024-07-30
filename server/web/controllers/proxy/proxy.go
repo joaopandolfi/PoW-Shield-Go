@@ -56,7 +56,7 @@ func (s *controller) proxy(w http.ResponseWriter, r *http.Request) {
 
 	sessionStatus, _ := s.cache.Get(session.ID.String())
 	if sessionStatus == nil {
-		log.Println("[ERROR][proxy] session not found")
+		log.Println("[ERROR][proxy] cached session not found")
 		handler.RespondDefaultError(w, http.StatusForbidden)
 		return
 	}
