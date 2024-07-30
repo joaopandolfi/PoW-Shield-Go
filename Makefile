@@ -23,3 +23,7 @@ build-backend:
 .PHONY: run-backend
 run-backend: 
 	@cd server && ./pow-shield-go
+
+.PHONY: check-vuln
+check-vuln:
+	@cd server && govulncheck ./...
