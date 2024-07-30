@@ -71,6 +71,7 @@ func Load() error {
 	}
 
 	cfg = &Config{
+		Port: ":5656",
 		SecOptions: secure.Options{
 			BrowserXssFilter:   true,
 			ContentTypeNosniff: true,
@@ -85,6 +86,10 @@ func Load() error {
 				MaxAge:   3600 * 2, //86400 * 7,
 				HttpOnly: true,
 			},
+		},
+		Pow: pow{
+			DefaultPrefixSize: 16,
+			NonceValidity:     15 * 1000, //miliseconds
 		},
 	}
 
