@@ -23,6 +23,13 @@ type Config struct {
 
 	Pow     pow
 	Session session
+	Static  static
+}
+
+type static struct {
+	ServeStatic  bool
+	StaticPath   string
+	StaticFolder string
 }
 
 type protectedServer struct {
@@ -96,12 +103,17 @@ func Load() error {
 			},
 		},
 		Pow: pow{
-			DefaultPrefixSize: 16,
-			NonceValidity:     15 * 1000, //miliseconds
+			DefaultPrefixSize: 15,
+			NonceValidity:     150 * 1000, //miliseconds -> senconds
 		},
 		ProtectedServer: protectedServer{
 			Host:           "http://localhost:3002",
 			DefaultHeaders: map[string]string{},
+		},
+		Static: static{
+			ServeStatic:  true,
+			StaticPath:   "/public/",
+			StaticFolder: "../client/public/",
 		},
 	}
 
