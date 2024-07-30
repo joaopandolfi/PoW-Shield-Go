@@ -100,7 +100,11 @@ func Load() error {
 	godotenv.Load(".env")
 
 	cfg = &Config{
-		Port: fmt.Sprintf(":%s", getEnvOrDefault("PORT", "5656")),
+		Port:    fmt.Sprintf(":%s", getEnvOrDefault("PORT", "5656")),
+		UseTLS:  StrTo[bool](getEnvOrDefault("USE_TLS", "false")),
+		TLSCert: getEnvOrDefault("TLS_CERT", ""),
+		TLSKey:  getEnvOrDefault("TLS_KEY", ""),
+
 		SecOptions: secure.Options{
 			BrowserXssFilter:   StrTo[bool](getEnvOrDefault("SEC_BROWSER_XSS_FILTER", "true")),
 			ContentTypeNosniff: StrTo[bool](getEnvOrDefault("SEC_CONTENT_TYPE_NO_SNIFF", "true")),
@@ -137,6 +141,14 @@ func Load() error {
 			WhiteListBodyRules:   StrTo[[]int](getEnvOrDefault("WHITELIST_BODY_RULES", "[]")),
 			WhiteListHeaderRules: StrTo[[]int](getEnvOrDefault("WHITELIST_HEADER_RULES", "[]")),
 			RawWafs:              loadWafRules(getEnvOrDefault("WAF_RULES_FILE", "wafRules.json")),
+		},
+		Cache: cache{
+			Redis: redis{
+				Use:      StrTo[bool](getEnvOrDefault("REDIS_USE", "false")),
+				DB:       StrTo[int](getEnvOrDefault("REDIS_DB", "1")),
+				Server:   getEnvOrDefault("REDIS_HOST", "localhost:6379"),
+				Password: getEnvOrDefault("REDIS_PASS", ""),
+			},
 		},
 	}
 
