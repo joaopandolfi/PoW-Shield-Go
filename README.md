@@ -57,7 +57,7 @@ make build-front
 3. Acess http://localhost:5656/public
 
 ## Contributing
-We welcome contributions! 
+We are welcome to contributions! 
 
 Contact me on joaopandolfi@gmail.com
 
