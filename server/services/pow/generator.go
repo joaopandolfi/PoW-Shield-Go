@@ -4,11 +4,13 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"fmt"
 	"pow-shield-go/config"
+	"pow-shield-go/models/domain"
 )
 
 type Generator interface {
-	Problem(ctx context.Context) (string, error)
+	Problem(ctx context.Context) (*domain.Challenge, error)
 }
 
 type generator struct {
@@ -31,6 +33,14 @@ func generateRandomString(length int) (string, error) {
 	return hex.EncodeToString(bytes), nil
 }
 
-func (s *generator) Problem(ctx context.Context) (string, error) {
-	return generateRandomString(s.defaultProblemLength)
+func (s *generator) Problem(ctx context.Context) (*domain.Challenge, error) {
+	prefix, err := generateRandomString(s.defaultProblemLength)
+	if err != nil {
+		return nil, fmt.Errorf("generating prefix: %w", err)
+	}
+
+	return &domain.Challenge{
+		Prefix:     prefix,
+		Difficulty: s.defaultProblemLength,
+	}, nil
 }

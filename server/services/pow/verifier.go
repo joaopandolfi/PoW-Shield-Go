@@ -31,9 +31,11 @@ func (s *verifier) Verify(ctx context.Context, nonce []byte, compelexity int, pr
 		return false, nil
 	}
 
-	diff := utils.ReadTimestamp(nonce, 0) - utils.Now()
+	timestamp := utils.ReadTimestamp(nonce, 0)
+	now := utils.Now()
+	diff := now - timestamp
 	if diff > s.validity {
-		return false, nil
+		return false, fmt.Errorf("expired tollerance for challenge")
 	}
 
 	hash, err := utils.Hash(nonce, prefix)
