@@ -50,13 +50,13 @@ make build-front-tools
 make build-front
 ```
 
-## Simple test
+### Simple test
 1. Build the backend
 2. Build the client
 3. Run the server
 3. Acess http://localhost:5656/public
 
-### Contributing
+## Contributing
 We welcome contributions! 
 
 Contact me on joaopandolfi@gmail.com
