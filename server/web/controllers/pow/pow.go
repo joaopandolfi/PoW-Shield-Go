@@ -1,6 +1,7 @@
 package pow
 
 import (
+	"encoding/hex"
 	"encoding/json"
 	"io"
 	"log"
@@ -33,16 +34,19 @@ func New(generator pow.Generator, verifier pow.Verifier) controllers.Controller 
 
 // challenge - get PoW challenge
 func (c *controller) challenge(w http.ResponseWriter, r *http.Request) {
-	prefix, err := c.generator.Problem(r.Context())
+	challenge, err := c.generator.Problem(r.Context())
 	if err != nil {
 		log.Println("[ERROR][challenge] Generating prefix", err.Error())
 		handler.RespondDefaultError(w, http.StatusInternalServerError)
 		return
 	}
 
-	handler.RespondJson(w, problemResponsePayload{
-		Prefix: prefix,
-	}, http.StatusOK)
+	var payload problemResponsePayload
+
+	payload.FromDomain(*challenge)
+
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	handler.RespondJson(w, payload, http.StatusOK)
 }
 
 // verify - verify PoW challenge
@@ -54,7 +58,7 @@ func (c *controller) verify(w http.ResponseWriter, r *http.Request) {
 		handler.RespondDefaultError(w, http.StatusBadRequest)
 		return
 	}
-
+	w.Header().Set("Access-Control-Allow-Origin", "*")
 	var payload verifyChallengePayload
 
 	err = json.Unmarshal(b, &payload)
@@ -71,21 +75,22 @@ func (c *controller) verify(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	success, err := c.verifier.Verify(r.Context(), []byte(payload.Buffer), payload.Difficulty, payload.Prefix)
+	data, err := hex.DecodeString(payload.Buffer)
 	if err != nil {
-		log.Println("[ERROR][verify] verifing payload", err.Error())
-		handler.RespondDefaultError(w, http.StatusNotAcceptable)
+		log.Println("[ERROR][verify] decoding hex", err.Error())
+		handler.RespondDefaultError(w, http.StatusBadRequest)
 		return
 	}
 
-	if !success {
-		log.Println("[ERROR][verify] INVALID NONCE", payload)
+	success, err := c.verifier.Verify(r.Context(), data, payload.Difficulty, payload.Prefix)
+	if err != nil {
+		log.Println("[ERROR][verify] INVALID NONCE:", err.Error())
 		handler.RespondDefaultError(w, http.StatusNotAcceptable)
 		return
 	}
 
 	err = handler.SetSession(w, r, &domain.Session{
-		Authorized: true,
+		Authorized: success,
 		Prefix:     payload.Prefix,
 		Buffer:     payload.Buffer,
 		Difficulty: payload.Difficulty,

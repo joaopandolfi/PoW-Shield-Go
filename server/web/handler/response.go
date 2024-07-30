@@ -12,7 +12,7 @@ import (
 // marshaler
 var marshaler func(v interface{}) ([]byte, error) = json.Marshal
 
-var activeZipOnResponse bool
+var activeZipOnResponse bool = false
 
 // ActiveZipOnResponse active compression protocol on response payload
 func ActiveZipOnResponse() {

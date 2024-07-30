@@ -11,7 +11,7 @@ const TOKEN_SESSION = "token"
 func SetSession(w http.ResponseWriter, r *http.Request, session *domain.Session) error {
 	s, _ := config.Get().Session.Store.Get(r, config.Get().Session.Name)
 
-	s.Values[TOKEN_SESSION] = session
+	s.Values[TOKEN_SESSION] = session.Wrap()
 	return s.Save(r, w)
 }
 
@@ -22,10 +22,16 @@ func GetSession(r *http.Request) *domain.Session {
 		return nil
 	}
 
-	decodedSess, ok := sess.(domain.Session)
+	wrapSess, ok := sess.(string)
 	if !ok {
 		return nil
 	}
 
-	return &decodedSess
+	result := domain.Session{}
+	err := result.Unrap(wrapSess)
+	if err != nil {
+		return nil
+	}
+
+	return &result
 }
