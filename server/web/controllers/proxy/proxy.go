@@ -27,13 +27,6 @@ func New() controllers.Controller {
 }
 
 func (s *controller) proxy(w http.ResponseWriter, r *http.Request) {
-	body, err := io.ReadAll(r.Body)
-	if err != nil {
-		log.Println("[ERROR][proxy] reading body", err.Error())
-		handler.RespondDefaultError(w, http.StatusBadRequest)
-		return
-	}
-
 	cookie, err := handler.GetCookie(r)
 	if err != nil {
 		log.Println("[ERROR][proxy] error on getting cookie", err.Error())
@@ -66,6 +59,13 @@ func (s *controller) proxy(w http.ResponseWriter, r *http.Request) {
 	if !session.ValidSessionState(status) {
 		log.Println("[ERROR][proxy] invalid session status", status)
 		handler.RespondDefaultError(w, http.StatusForbidden)
+		return
+	}
+
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		log.Println("[ERROR][proxy] reading body", err.Error())
+		handler.RespondDefaultError(w, http.StatusBadRequest)
 		return
 	}
 
