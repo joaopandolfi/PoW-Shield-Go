@@ -24,8 +24,34 @@ To start using PoW Shield, follow these steps:
 - Deployment: Deploy the proxy to your desired environment.
 - For detailed instructions, please refer to the Installation Guide.
 
+### Backend
+1. Configure the env file
+2. Copy `.env.example` to `./server/.env`
+```sh
+cp .env.example server/.env
+```
+
+3. Build and execute
+
+```sh
+make build-backend
+make run-backend
+```
+
+#### Check backend vulnerabilities
+```sh
+make check-vuln
+```
+
+### Frontend
+
+```sh
+make build-front-tools
+make build-front
+```
+
 ### Contributing
 We welcome contributions! 
 
-License
+## License
 This project is licensed under the MIT License.

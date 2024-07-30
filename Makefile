@@ -1,18 +1,17 @@
 
-.PHONY: front-build-tools
+.PHONY: build-front-tools
 front-build-tools:
 	@echo "installing nodejs libs"
 	@cd client && npm install
 	@echo "Sucess!"
 
-.PHONY: front-build
-front-build:
+.PHONY: build-front
+build-front:
 	@echo "generate bundle"
 	@cd client && npm run build
 
-
-.PHONY: front-build-beauty
-front-build-beauty:
+.PHONY: build-front-beauty
+build-front-beauty:
 	@echo "generate bundle without uglify"
 	@cd client && npm run build
 
