@@ -53,5 +53,7 @@ make build-front
 ### Contributing
 We welcome contributions! 
 
+Contact me on joaopandolfi@gmail.com
+
 ## License
 This project is licensed under the MIT License.
