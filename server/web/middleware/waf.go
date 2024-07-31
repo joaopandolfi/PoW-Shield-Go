@@ -2,7 +2,6 @@ package middleware
 
 import (
 	"encoding/json"
-	"fmt"
 	"io"
 	"log"
 	"net/http"
@@ -67,7 +66,7 @@ func Waf(next func(http.ResponseWriter, *http.Request)) http.HandlerFunc {
 			return
 		}
 
-		fmt.Println("[.]][Middleware][WAF] ", r.URL.String())
+		log.Println("[.]][Middleware][WAF] ", r.URL.String())
 		loadWafList()
 
 		url := r.URL.String()

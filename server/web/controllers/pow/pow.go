@@ -47,7 +47,7 @@ func (c *controller) challenge(w http.ResponseWriter, r *http.Request) {
 
 	challenge, err := c.generator.Problem(r.Context(), session)
 	if err != nil {
-		log.Println("[ERROR][challenge] Generating prefix", err.Error())
+		log.Println("[!][ERROR][challenge] Generating prefix", err.Error())
 		handler.RespondDefaultError(w, http.StatusInternalServerError)
 		return
 	}
@@ -68,7 +68,7 @@ func (c *controller) verify(w http.ResponseWriter, r *http.Request) {
 
 	b, err := io.ReadAll(r.Body)
 	if err != nil {
-		log.Println("[ERROR][verify] unrap body", err.Error())
+		log.Println("[!][ERROR][verify] unrap body", err.Error())
 		handler.RespondDefaultError(w, http.StatusBadRequest)
 		return
 	}
@@ -76,28 +76,28 @@ func (c *controller) verify(w http.ResponseWriter, r *http.Request) {
 
 	err = json.Unmarshal(b, &payload)
 	if err != nil {
-		log.Println("[ERROR][verify] unmarshal body", err.Error())
+		log.Println("[!][ERROR][verify] unmarshal body", err.Error())
 		handler.RespondDefaultError(w, http.StatusBadRequest)
 		return
 	}
 
 	err = validator.New().Struct(payload)
 	if err != nil {
-		log.Println("[ERROR][verify] validating body", err.Error())
+		log.Println("[!][ERROR][verify] validating body", err.Error())
 		handler.RespondDefaultError(w, http.StatusBadRequest)
 		return
 	}
 
 	data, err := hex.DecodeString(payload.Buffer)
 	if err != nil {
-		log.Println("[ERROR][verify] decoding hex", err.Error())
+		log.Println("[!][ERROR][verify] decoding hex", err.Error())
 		handler.RespondDefaultError(w, http.StatusBadRequest)
 		return
 	}
 
 	success, err := c.verifier.Verify(r.Context(), session, data, payload.Difficulty, payload.Prefix)
 	if err != nil {
-		log.Println("[ERROR][verify] INVALID NONCE:", err.Error())
+		log.Println("[!][ERROR][verify] INVALID NONCE:", err.Error())
 		handler.RespondDefaultError(w, http.StatusNotAcceptable)
 		return
 	}

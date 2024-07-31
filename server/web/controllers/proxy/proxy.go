@@ -30,7 +30,7 @@ func New() controllers.Controller {
 func (s *controller) proxy(w http.ResponseWriter, r *http.Request) {
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
-		log.Println("[ERROR][proxy] reading body", err.Error())
+		log.Println("[!][ERROR][proxy] reading body", err.Error())
 		handler.RespondDefaultError(w, http.StatusBadRequest)
 		return
 	}
@@ -47,7 +47,7 @@ func (s *controller) proxy(w http.ResponseWriter, r *http.Request) {
 		body,
 	)
 	if err != nil {
-		log.Println("[ERROR][proxy] proxing request: ", err.Error())
+		log.Println("[!][ERROR][proxy] proxing request: ", err.Error())
 		handler.RespondDefaultError(w, http.StatusBadRequest)
 		return
 	}
