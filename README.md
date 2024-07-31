@@ -54,7 +54,7 @@ make build-front
 1. Build the backend
 2. Build the client
 3. Run the server
-3. Acess http://localhost:5656/public
+3. Access http://localhost:5656/public
 
 ## Contributing
 We are welcome to contributions! 
