@@ -4,7 +4,7 @@ import "net/http"
 
 func blockRequest(w http.ResponseWriter) {
 	w.WriteHeader(http.StatusNotAcceptable)
-	w.Write([]byte("O_O"))
+	w.Write([]byte("blocked: x_x"))
 }
 
 func contains(s []int, e int) bool {
