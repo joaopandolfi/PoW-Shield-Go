@@ -18,14 +18,16 @@ type Verifier interface {
 }
 
 type verifier struct {
-	validity uint64
-	cache    cache.Cache
+	validity   uint64
+	punishment int
+	cache      cache.Cache
 }
 
 func NewVerifier() Verifier {
 	return &verifier{
-		validity: uint64(config.Get().Pow.NonceValidity),
-		cache:    cache.Get(),
+		validity:   uint64(config.Get().Pow.NonceValidity),
+		punishment: config.Get().Pow.Punishment,
+		cache:      cache.Get(),
 	}
 }
 
@@ -35,16 +37,20 @@ func (s *verifier) Verify(ctx context.Context, session *domain.Session, nonce []
 	success := false
 	defer func() {
 		key := session.ID.String()
-		if !success {
-			previousChallenge, _ := s.cache.Get(key)
-			if previousChallenge != nil {
-				state, _ := previousChallenge.(string)
-				challenge := domain.Challenge{}
-				s.cache.Put(key, challenge.IncreaseDifficulty(state), defaultCacheDuration)
-				session.Difficulty = challenge.Difficulty
+		challenge := domain.NewChallenge()
+		previousChallenge, _ := s.cache.Get(key)
+
+		if previousChallenge != nil {
+			previousState, ok := previousChallenge.(string)
+			if ok {
+				challenge.Status = previousState
 			}
+		}
+		if !success {
+			s.cache.Put(key, challenge.IncreaseDifficulty(challenge.Status, s.punishment), defaultCacheDuration)
+			session.Difficulty = challenge.Difficulty
 		} else {
-			s.cache.Put(key, hex.Dump(nonce), defaultCacheDuration)
+			s.cache.Put(key, challenge.RegisterSuccess(hex.Dump(nonce), s.punishment), defaultCacheDuration)
 		}
 	}()
 

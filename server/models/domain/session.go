@@ -21,7 +21,7 @@ type Session struct {
 	Challenges  int
 	CreatedAt   time.Time
 	LastRequest time.Time
-	ID          uuid.UUID
+	ID          uuid.UUID `json:"id"`
 }
 
 func NewSession() *Session {
@@ -60,7 +60,7 @@ func (s *Session) ToCookie() *Cookie {
 }
 
 func (s *Session) ValidSessionState(state string) bool {
-	return !(strings.Contains(state, CHALLENGE_STATUS_ERROR_COUNT) || state == CHALLENGE_STATUS_TO_SOLVE)
+	return !(strings.Contains(state, CHALLENGE_STATUS_ERROR_COUNT) || strings.Contains(state, CHALLENGE_STATUS_TO_SOLVE))
 }
 
 func (s *Session) ContabilizeNewRequest() {

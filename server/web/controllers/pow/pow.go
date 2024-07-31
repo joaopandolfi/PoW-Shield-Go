@@ -34,17 +34,32 @@ func New(generator pow.Generator, verifier pow.Verifier) controllers.Controller 
 }
 
 func (c *controller) getSession(r *http.Request) *domain.Session {
-	session := handler.GetSession(r)
+	var session *domain.Session
+	if config.Get().Pow.UseSession {
+		session = handler.GetSession(r)
+	}
+
+	if config.Get().Pow.UseHeader {
+		wrappedSession := handler.PowHeader(r)
+		if wrappedSession != "" {
+			s := domain.Session{}
+			err := s.Unrap(wrappedSession)
+			if err == nil {
+				session = &s
+			}
+		}
+	}
+
 	if session == nil {
 		session = domain.NewSession()
 	}
+
 	return session
 }
 
 // challenge - get PoW challenge
 func (c *controller) challenge(w http.ResponseWriter, r *http.Request) {
 	session := c.getSession(r)
-	session.Difficulty += 1
 
 	challenge, err := c.generator.Problem(r.Context(), session)
 	if err != nil {
@@ -53,7 +68,9 @@ func (c *controller) challenge(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	handler.SetSession(w, r, session)
+	if config.Get().Pow.UseSession {
+		handler.SetSession(w, r, session)
+	}
 
 	var payload problemResponsePayload
 

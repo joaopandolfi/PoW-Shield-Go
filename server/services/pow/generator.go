@@ -16,12 +16,14 @@ type Generator interface {
 
 type generator struct {
 	defaultProblemLength int
+	punishment           int
 	cache                cache.Cache
 }
 
 func NewGerator() Generator {
 	return &generator{
 		defaultProblemLength: config.Get().Pow.DefaultPrefixSize,
+		punishment:           config.Get().Pow.Punishment,
 		cache:                cache.Get(),
 	}
 }
@@ -52,7 +54,7 @@ func (s *generator) Problem(ctx context.Context, requester *domain.Session) (*do
 		challenge.ParsePreviousState(state)
 	}
 
-	difficulty := s.defaultProblemLength + requester.Difficulty + challenge.Difficulty
+	difficulty := s.defaultProblemLength + challenge.Difficulty
 	prefix, err := generateRandomString(difficulty)
 	if err != nil {
 		return nil, fmt.Errorf("generating prefix: %w", err)
@@ -60,11 +62,11 @@ func (s *generator) Problem(ctx context.Context, requester *domain.Session) (*do
 
 	challenge.Prefix = prefix
 	challenge.Difficulty = difficulty
+	challenge.ParseState(s.punishment)
 
-	err = s.cache.Put(challenge.Key(), domain.CHALLENGE_STATUS_TO_SOLVE, defaultCacheDuration)
+	err = s.cache.Put(challenge.Key(), challenge.Status, defaultCacheDuration)
 	if err != nil {
 		return nil, fmt.Errorf("error on saving problem on cache: %w", err)
 	}
-
 	return &challenge, nil
 }

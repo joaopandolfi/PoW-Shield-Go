@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"pow-shield-go/config"
 	"pow-shield-go/internal/cache"
+	"pow-shield-go/models/domain"
 	"pow-shield-go/web/handler"
 )
 
@@ -44,38 +45,45 @@ func PoW(next func(http.ResponseWriter, *http.Request)) http.HandlerFunc {
 			}
 		}
 
+		var session *domain.Session
 		if config.Get().Pow.UseSession {
-			session := handler.GetSession(r)
+			session = handler.GetSession(r)
 			if session == nil {
 				cleanAll(w, r)
 				blockReason = "session found"
 				blockRequest(w)
 				return
 			}
+		}
 
-			if !session.Authorized {
+		if config.Get().Pow.UseHeader && session == nil {
+			wrappedSession := handler.PowHeader(r)
+			s := domain.Session{}
+			err := s.Unrap(wrappedSession)
+			if err != nil {
 				cleanAll(w, r)
-				blockReason = "session not authorized"
+				blockReason = "header session found"
 				blockRequest(w)
 				return
 			}
+			session = &s
+		}
 
-			sessionStatus, _ := powCache.Get(session.ID.String())
-			if sessionStatus == nil {
-				blockReason = "cached session not found"
-				cleanAll(w, r)
-				blockRequest(w)
-				return
-			}
+		sessionStatus, _ := powCache.Get(session.ID.String())
+		if sessionStatus == nil {
+			blockReason = "cached session not found"
+			cleanAll(w, r)
+			blockRequest(w)
+			return
+		}
 
-			status, _ := sessionStatus.(string)
+		status, _ := sessionStatus.(string)
 
-			if !session.ValidSessionState(status) {
-				blockReason = "invalid session status"
-				cleanAll(w, r)
-				blockRequest(w)
-				return
-			}
+		if !session.ValidSessionState(status) {
+			blockReason = "invalid session status"
+			cleanAll(w, r)
+			blockRequest(w)
+			return
 		}
 
 		success = true
