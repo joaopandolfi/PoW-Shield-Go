@@ -16,7 +16,10 @@ var wafBody []domain.Waf
 var wafUrl []domain.Waf
 var allWafs []domain.Waf
 
-func loadWafList() {
+func InitWaf() {
+	if !config.Get().Waf.Active {
+		return
+	}
 	if allWafs != nil {
 		return
 	}
@@ -67,7 +70,6 @@ func Waf(next func(http.ResponseWriter, *http.Request)) http.HandlerFunc {
 		}
 
 		log.Println("[.]][Middleware][WAF] ", r.URL.String())
-		loadWafList()
 
 		url := r.URL.String()
 		detecteds := wafDetect(url, wafUrl)

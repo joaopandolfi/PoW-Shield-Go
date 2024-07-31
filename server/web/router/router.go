@@ -7,6 +7,7 @@ import (
 	"pow-shield-go/web/controllers/pow"
 	"pow-shield-go/web/controllers/proxy"
 	"pow-shield-go/web/controllers/static"
+	"pow-shield-go/web/middleware"
 	"pow-shield-go/web/server"
 
 	"github.com/unrolled/secure"
@@ -25,6 +26,7 @@ func New(s *server.Server) Router {
 // Setup router
 func (r *Router) Setup() {
 	r.secure()
+	middleware.Setup()
 
 	static.New().SetupRouter(r.s)
 	generator := powServices.NewGerator()
@@ -32,7 +34,6 @@ func (r *Router) Setup() {
 
 	pow.New(generator, verifier).SetupRouter(r.createSubRouter("/pow"))
 	health.New().SetupRouter(r.s)
-
 	proxy.New().SetupRouter(r.s)
 }
 

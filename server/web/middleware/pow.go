@@ -8,6 +8,14 @@ import (
 	"pow-shield-go/web/handler"
 )
 
+var powCache cache.Cache
+
+func InitPow() {
+	if powCache == nil {
+		powCache = cache.Get()
+	}
+}
+
 func PoW(next func(http.ResponseWriter, *http.Request)) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if config.Get().Pow.UseCookie {
@@ -23,7 +31,6 @@ func PoW(next func(http.ResponseWriter, *http.Request)) http.HandlerFunc {
 				blockRequest(w)
 				return
 			}
-
 		}
 
 		session := handler.GetSession(r)
@@ -33,9 +40,7 @@ func PoW(next func(http.ResponseWriter, *http.Request)) http.HandlerFunc {
 			return
 		}
 
-		c := cache.Get()
-
-		sessionStatus, _ := c.Get(session.ID.String())
+		sessionStatus, _ := powCache.Get(session.ID.String())
 		if sessionStatus == nil {
 			log.Println("[*][Middleware][proxy] cached session not found")
 			blockRequest(w)
