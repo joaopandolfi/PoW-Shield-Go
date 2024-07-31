@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"fmt"
 	"log"
 	"net/http"
 	"pow-shield-go/config"
@@ -18,18 +19,25 @@ func InitPow() {
 
 func PoW(next func(http.ResponseWriter, *http.Request)) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		success := false
+		blockReason := ""
+		defer func() {
+			if !success {
+				log.Println("[+][Middleware][PoW] Blocking access to", r.URL.String(), r.RemoteAddr, r.Header.Get("X-Real-Ip"), "-", blockReason)
+			}
+		}()
 
 		if config.Get().Pow.UseCookie {
 			cookie, err := handler.GetCookie(r)
 			if err != nil {
-				log.Println("[!][Middleware][proxy] error on getting cookie", err.Error())
+				blockReason = fmt.Sprintf("error on getting cookie: %s", err.Error())
 				cleanAll(w, r)
 				blockRequest(w)
 				return
 			}
 
 			if cookie == nil {
-				log.Println("[*][Middleware][proxy] session not authorized")
+				blockReason = "session not authorized"
 				cleanAll(w, r)
 				blockRequest(w)
 				return
@@ -40,21 +48,21 @@ func PoW(next func(http.ResponseWriter, *http.Request)) http.HandlerFunc {
 			session := handler.GetSession(r)
 			if session == nil {
 				cleanAll(w, r)
-				log.Println("[*][Middleware][proxy] session found")
+				blockReason = "session found"
 				blockRequest(w)
 				return
 			}
 
 			if !session.Authorized {
 				cleanAll(w, r)
-				log.Println("[*][Middleware][proxy] session not authorized")
+				blockReason = "session not authorized"
 				blockRequest(w)
 				return
 			}
 
 			sessionStatus, _ := powCache.Get(session.ID.String())
 			if sessionStatus == nil {
-				log.Println("[*][Middleware][proxy] cached session not found")
+				blockReason = "cached session not found"
 				cleanAll(w, r)
 				blockRequest(w)
 				return
@@ -63,13 +71,14 @@ func PoW(next func(http.ResponseWriter, *http.Request)) http.HandlerFunc {
 			status, _ := sessionStatus.(string)
 
 			if !session.ValidSessionState(status) {
-				log.Println("[*][Middleware][proxy] invalid session status")
+				blockReason = "invalid session status"
 				cleanAll(w, r)
 				blockRequest(w)
 				return
 			}
 		}
 
+		success = true
 		next(w, r)
 	}
 }
