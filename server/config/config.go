@@ -54,6 +54,8 @@ type pow struct {
 	NonceValidity     int
 	DefaultPrefixSize int
 	UseCookie         bool
+	UseSession        bool
+	Active            bool
 }
 
 type cache struct {
@@ -126,6 +128,8 @@ func Load() error {
 			DefaultPrefixSize: StrTo[int](getEnvOrDefault("DEFAULT_PREFIX_SIZE", "15")),
 			NonceValidity:     StrTo[int](getEnvOrDefault("NONCE_VALIDITY", "150000")), // 150 * 1000, //miliseconds -> senconds
 			UseCookie:         StrTo[bool](getEnvOrDefault("USE_COOKIE", "true")),
+			UseSession:        StrTo[bool](getEnvOrDefault("USE_SESSION", "true")),
+			Active:            StrTo[bool](getEnvOrDefault("POW_ACTIVE", "true")),
 		},
 		ProtectedServer: protectedServer{
 			Host:           getEnvOrDefault("PROTECTED_SERVER_HEADERS", "http://localhost:3001"),
@@ -151,6 +155,10 @@ func Load() error {
 				Password: getEnvOrDefault("REDIS_PASS", ""),
 			},
 		},
+	}
+
+	if !cfg.Pow.UseCookie && !cfg.Pow.UseSession && cfg.Pow.Active {
+		return fmt.Errorf("to use PoW protection you need to setup USE_COOKIE or USE_SESSION (both can be true)")
 	}
 
 	return nil

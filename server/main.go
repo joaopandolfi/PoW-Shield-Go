@@ -16,12 +16,15 @@ import (
 	"github.com/gorilla/mux"
 )
 
-func configInit(ctx context.Context) {
-	config.Load()
+func configInit(ctx context.Context) error {
+	err := config.Load()
+	if err != nil {
+		return fmt.Errorf("loading envs: %w", err)
+	}
 
 	tickMemoryGarbageCollector := time.Second * 45
 	cache.Initialize(ctx, tickMemoryGarbageCollector)
-
+	return nil
 }
 
 func gracefullShutdown() {
@@ -50,7 +53,10 @@ func main() {
 	welcome()
 	//Init
 	ctx := context.Background()
-	configInit(ctx)
+	err := configInit(ctx)
+	if err != nil {
+		log.Fatal("[!] Loading configs: ", err.Error())
+	}
 
 	// Initialize Mux Router
 	r := mux.NewRouter()

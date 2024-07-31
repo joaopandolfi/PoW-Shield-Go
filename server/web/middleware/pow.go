@@ -36,29 +36,38 @@ func PoW(next func(http.ResponseWriter, *http.Request)) http.HandlerFunc {
 			}
 		}
 
-		session := handler.GetSession(r)
-		if !session.Authorized {
-			cleanAll(w, r)
-			log.Println("[*][Middleware][proxy] session not authorized")
-			blockRequest(w)
-			return
-		}
+		if config.Get().Pow.UseSession {
+			session := handler.GetSession(r)
+			if session == nil {
+				cleanAll(w, r)
+				log.Println("[*][Middleware][proxy] session found")
+				blockRequest(w)
+				return
+			}
 
-		sessionStatus, _ := powCache.Get(session.ID.String())
-		if sessionStatus == nil {
-			log.Println("[*][Middleware][proxy] cached session not found")
-			cleanAll(w, r)
-			blockRequest(w)
-			return
-		}
+			if !session.Authorized {
+				cleanAll(w, r)
+				log.Println("[*][Middleware][proxy] session not authorized")
+				blockRequest(w)
+				return
+			}
 
-		status, _ := sessionStatus.(string)
+			sessionStatus, _ := powCache.Get(session.ID.String())
+			if sessionStatus == nil {
+				log.Println("[*][Middleware][proxy] cached session not found")
+				cleanAll(w, r)
+				blockRequest(w)
+				return
+			}
 
-		if !session.ValidSessionState(status) {
-			log.Println("[*][Middleware][proxy] invalid session status")
-			cleanAll(w, r)
-			blockRequest(w)
-			return
+			status, _ := sessionStatus.(string)
+
+			if !session.ValidSessionState(status) {
+				log.Println("[*][Middleware][proxy] invalid session status")
+				cleanAll(w, r)
+				blockRequest(w)
+				return
+			}
 		}
 
 		next(w, r)

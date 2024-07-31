@@ -6,6 +6,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"pow-shield-go/config"
 	"pow-shield-go/models/domain"
 	"pow-shield-go/services/pow"
 	"pow-shield-go/web/controllers"
@@ -104,8 +105,13 @@ func (c *controller) verify(w http.ResponseWriter, r *http.Request) {
 
 	session.RegisterNewChallenge(success, payload.Prefix, payload.Buffer)
 
-	handler.SetSession(w, r, session)
-	handler.SetCookie(w, session.ToCookie())
+	if config.Get().Pow.UseCookie {
+		handler.SetCookie(w, session.ToCookie())
+	}
+	if config.Get().Pow.UseSession {
+		handler.SetSession(w, r, session)
+	}
+
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 	w.Header().Set("Access-Control-Allow-Credentials", "true")
 
