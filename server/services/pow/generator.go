@@ -41,10 +41,10 @@ func generateRandomString(length int) (string, error) {
 func (s *generator) Problem(ctx context.Context, requester *domain.Session) (*domain.Challenge, error) {
 
 	challenge := domain.Challenge{
-		Requester: requester.ID.String(),
+		Requester: requester.ID,
 	}
 
-	previousChallenge, err := s.cache.Get(requester.ID.String())
+	previousChallenge, err := s.cache.Get(requester.ID)
 	if err != nil {
 		return nil, fmt.Errorf("getting previuos challenge: %w", err)
 	}
@@ -68,5 +68,6 @@ func (s *generator) Problem(ctx context.Context, requester *domain.Session) (*do
 	if err != nil {
 		return nil, fmt.Errorf("error on saving problem on cache: %w", err)
 	}
+
 	return &challenge, nil
 }

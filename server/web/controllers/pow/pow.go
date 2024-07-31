@@ -7,30 +7,51 @@ import (
 	"log"
 	"net/http"
 	"pow-shield-go/config"
+	"pow-shield-go/internal/cache"
 	"pow-shield-go/models/domain"
 	"pow-shield-go/services/pow"
 	"pow-shield-go/web/controllers"
 	"pow-shield-go/web/handler"
+	"pow-shield-go/web/middleware"
 	"pow-shield-go/web/server"
+	"time"
 
 	"github.com/go-playground/validator"
+	"github.com/google/uuid"
 )
 
 // --- PoW ---
 
+const sessionKeyID = "session:"
+
 type controller struct {
-	s         *server.Server
-	verifier  pow.Verifier
-	generator pow.Generator
+	s                    *server.Server
+	verifier             pow.Verifier
+	generator            pow.Generator
+	cache                cache.Cache
+	ipTollerance         int
+	defaultCacheDuration time.Duration
 }
 
 // New controller
 func New(generator pow.Generator, verifier pow.Verifier) controllers.Controller {
 	return &controller{
-		s:         nil,
-		generator: generator,
-		verifier:  verifier,
+		s:            nil,
+		generator:    generator,
+		verifier:     verifier,
+		cache:        cache.Get(),
+		ipTollerance: config.Get().Pow.IPTollerance,
 	}
+}
+
+func (c *controller) sessionIDFromRequest(r *http.Request) string {
+	id := r.Context().Value(middleware.UserID)
+	strID, ok := id.(string)
+	if !ok {
+		return uuid.New().String()
+	}
+
+	return strID
 }
 
 func (c *controller) getSession(r *http.Request) *domain.Session {
@@ -51,7 +72,20 @@ func (c *controller) getSession(r *http.Request) *domain.Session {
 	}
 
 	if session == nil {
-		session = domain.NewSession()
+		reqSessionID := c.sessionIDFromRequest(r)
+		sessionID := reqSessionID
+		reuseCount := 1
+		sessionCount, _ := c.cache.Get(reqSessionID)
+		if sessionCount != nil {
+			if count, ok := sessionCount.(int); ok {
+				if count > c.ipTollerance {
+					sessionID = uuid.New().String()
+				}
+				reuseCount = count + 1
+			}
+		}
+		c.cache.Put(reqSessionID, reuseCount, c.defaultCacheDuration)
+		session = domain.NewSession(sessionID)
 	}
 
 	return session

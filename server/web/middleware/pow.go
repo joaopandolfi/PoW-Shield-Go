@@ -24,7 +24,7 @@ func PoW(next func(http.ResponseWriter, *http.Request)) http.HandlerFunc {
 		blockReason := ""
 		defer func() {
 			if !success {
-				log.Println("[+][Middleware][PoW] Blocking access to", r.URL.String(), r.RemoteAddr, r.Header.Get("X-Real-Ip"), "-", blockReason)
+				log.Println("[+][Middleware][PoW] Blocking access to", r.URL.String(), handler.IP(r), "-", blockReason)
 			}
 		}()
 
@@ -69,7 +69,7 @@ func PoW(next func(http.ResponseWriter, *http.Request)) http.HandlerFunc {
 			session = &s
 		}
 
-		sessionStatus, _ := powCache.Get(session.ID.String())
+		sessionStatus, _ := powCache.Get(session.ID)
 		if sessionStatus == nil {
 			blockReason = "cached session not found"
 			cleanAll(w, r)

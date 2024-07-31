@@ -8,8 +8,6 @@ import (
 	"pow-shield-go/services/utils"
 	"strings"
 	"time"
-
-	"github.com/google/uuid"
 )
 
 type Session struct {
@@ -21,12 +19,12 @@ type Session struct {
 	Challenges  int
 	CreatedAt   time.Time
 	LastRequest time.Time
-	ID          uuid.UUID `json:"id"`
+	ID          string `json:"id"`
 }
 
-func NewSession() *Session {
+func NewSession(id string) *Session {
 	return &Session{
-		ID:          uuid.New(),
+		ID:          id,
 		Difficulty:  0,
 		Requests:    0,
 		Challenges:  0,

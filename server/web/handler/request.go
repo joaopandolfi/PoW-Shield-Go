@@ -1,6 +1,8 @@
 package handler
 
 import (
+	"fmt"
+	"net"
 	"net/http"
 	"strings"
 )
@@ -17,4 +19,13 @@ func Headers(r *http.Request) map[string]string {
 
 func PowHeader(r *http.Request) string {
 	return r.Header.Get(POW_HEADER)
+}
+
+func IP(r *http.Request) string {
+	ip := r.RemoteAddr
+	parsedIP := net.ParseIP(r.RemoteAddr)
+	if parsedIP != nil {
+		ip = string(parsedIP)
+	}
+	return fmt.Sprintf("%s %s", ip, r.Header.Get("X-Real-Ip"))
 }

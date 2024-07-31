@@ -36,7 +36,7 @@ func (s *verifier) Verify(ctx context.Context, session *domain.Session, nonce []
 
 	success := false
 	defer func() {
-		key := session.ID.String()
+		key := session.ID
 		challenge := domain.NewChallenge()
 		previousChallenge, _ := s.cache.Get(key)
 
@@ -52,6 +52,7 @@ func (s *verifier) Verify(ctx context.Context, session *domain.Session, nonce []
 		} else {
 			s.cache.Put(key, challenge.RegisterSuccess(hex.Dump(nonce), s.punishment), defaultCacheDuration)
 		}
+		fmt.Println(challenge.Status)
 	}()
 
 	nonceSize := len(nonce)

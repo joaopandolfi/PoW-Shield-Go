@@ -27,6 +27,7 @@ func New(s *server.Server) Router {
 func (r *Router) Setup() {
 	r.secure()
 	middleware.Setup()
+	r.s.R.Use(middleware.Identificator)
 
 	static.New().SetupRouter(r.s)
 	generator := powServices.NewGerator()

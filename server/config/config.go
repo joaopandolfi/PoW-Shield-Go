@@ -54,6 +54,7 @@ type pow struct {
 	NonceValidity     int
 	DefaultPrefixSize int
 	Punishment        int
+	IPTollerance      int
 	UseCookie         bool
 	UseSession        bool
 	UseHeader         bool
@@ -129,6 +130,7 @@ func Load() error {
 		Pow: pow{
 			DefaultPrefixSize: StrTo[int](getEnvOrDefault("DEFAULT_PREFIX_SIZE", "15")),
 			Punishment:        StrTo[int](getEnvOrDefault("PUNISHMENT", "1")),
+			IPTollerance:      StrTo[int](getEnvOrDefault("IP_TOLLERANCE", "1")),
 			NonceValidity:     StrTo[int](getEnvOrDefault("NONCE_VALIDITY", "150000")), // 150 * 1000, //miliseconds -> senconds
 			UseCookie:         StrTo[bool](getEnvOrDefault("USE_COOKIE", "true")),
 			UseSession:        StrTo[bool](getEnvOrDefault("USE_SESSION", "true")),
