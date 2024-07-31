@@ -15,7 +15,7 @@ const (
 	UserID SessionData = "userID"
 )
 
-const sessionKeyID = "session:"
+const sessionKeyID = "s:"
 
 var hasher hash.Hash
 
@@ -27,10 +27,10 @@ func InitIdentificator() {
 func Identificator(h http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 
-		id := fmt.Sprintf("%s%s", sessionKeyID, handler.IP(r))
-		hasher.Write([]byte(id))
+		hasher.Write([]byte(handler.IP(r)))
 		bs := fmt.Sprintf("%x", hasher.Sum(nil))
-		ctx := context.WithValue(r.Context(), UserID, string(bs))
+		id := fmt.Sprintf("%s%s", sessionKeyID, bs)
+		ctx := context.WithValue(r.Context(), UserID, string(id))
 		r = r.WithContext(ctx)
 
 		h.ServeHTTP(w, r)

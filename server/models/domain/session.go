@@ -38,6 +38,13 @@ func (s *Session) Wrap() string {
 	return string(utils.ToBase64(b))
 }
 
+func (s *Session) PublicWrap() string {
+	// strip data who cannot be public
+	s.Requests = 0
+	s.Challenges = 0
+	return s.Wrap()
+}
+
 func (s *Session) Unrap(data string) error {
 	decoded, err := utils.FromBase64(data)
 	if err != nil {
@@ -58,7 +65,11 @@ func (s *Session) ToCookie() *Cookie {
 }
 
 func (s *Session) ValidSessionState(state string) bool {
-	return !(strings.Contains(state, CHALLENGE_STATUS_ERROR_COUNT) || strings.Contains(state, CHALLENGE_STATUS_TO_SOLVE))
+	if strings.Contains(state, CHALLENGE_STATUS_ERROR_COUNT) || strings.Contains(state, CHALLENGE_STATUS_TO_SOLVE) {
+		return false
+	}
+
+	return VerifyChallengeState(state, s.Buffer)
 }
 
 func (s *Session) ContabilizeNewRequest() {

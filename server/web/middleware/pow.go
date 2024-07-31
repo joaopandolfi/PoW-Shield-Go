@@ -48,12 +48,6 @@ func PoW(next func(http.ResponseWriter, *http.Request)) http.HandlerFunc {
 		var session *domain.Session
 		if config.Get().Pow.UseSession {
 			session = handler.GetSession(r)
-			if session == nil {
-				blockReason = "session not found"
-				cleanAll(w, r)
-				blockRequest(w)
-				return
-			}
 		}
 
 		if config.Get().Pow.UseHeader && session == nil {
@@ -67,6 +61,13 @@ func PoW(next func(http.ResponseWriter, *http.Request)) http.HandlerFunc {
 				return
 			}
 			session = &s
+		}
+
+		if session == nil {
+			blockReason = "session not found"
+			cleanAll(w, r)
+			blockRequest(w)
+			return
 		}
 
 		sessionStatus, _ := powCache.Get(session.ID)

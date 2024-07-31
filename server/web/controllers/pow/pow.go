@@ -166,5 +166,7 @@ func (c *controller) verify(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 	w.Header().Set("Access-Control-Allow-Credentials", "true")
 
-	handler.RespondJson(w, true, http.StatusOK)
+	handler.RespondJson(w, map[string]string{
+		"token": session.PublicWrap(),
+	}, http.StatusOK)
 }

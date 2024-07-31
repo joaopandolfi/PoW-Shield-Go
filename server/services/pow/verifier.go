@@ -50,7 +50,7 @@ func (s *verifier) Verify(ctx context.Context, session *domain.Session, nonce []
 			s.cache.Put(key, challenge.IncreaseDifficulty(challenge.Status, s.punishment), defaultCacheDuration)
 			session.Difficulty = challenge.Difficulty
 		} else {
-			s.cache.Put(key, challenge.RegisterSuccess(hex.Dump(nonce), s.punishment), defaultCacheDuration)
+			s.cache.Put(key, challenge.RegisterSuccess(hex.EncodeToString(nonce), s.punishment), defaultCacheDuration)
 		}
 	}()
 
