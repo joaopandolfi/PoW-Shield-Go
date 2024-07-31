@@ -6,7 +6,6 @@ import (
 	"log"
 	"net/http"
 	"pow-shield-go/config"
-	"pow-shield-go/internal/cache"
 	"pow-shield-go/internal/request"
 	"pow-shield-go/web/controllers"
 	"pow-shield-go/web/handler"
@@ -15,15 +14,13 @@ import (
 )
 
 type controller struct {
-	s     *server.Server
-	cache cache.Cache
+	s *server.Server
 }
 
 // New controller
 func New() controllers.Controller {
 	return &controller{
-		s:     nil,
-		cache: cache.Get(),
+		s: nil,
 	}
 }
 

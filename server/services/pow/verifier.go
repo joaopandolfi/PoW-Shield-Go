@@ -52,7 +52,6 @@ func (s *verifier) Verify(ctx context.Context, session *domain.Session, nonce []
 		} else {
 			s.cache.Put(key, challenge.RegisterSuccess(hex.Dump(nonce), s.punishment), defaultCacheDuration)
 		}
-		fmt.Println(challenge.Status)
 	}()
 
 	nonceSize := len(nonce)

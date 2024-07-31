@@ -69,7 +69,7 @@ func Waf(next func(http.ResponseWriter, *http.Request)) http.HandlerFunc {
 			return
 		}
 
-		log.Println("[.]][Middleware][WAF] ", r.URL.String())
+		log.Println("[.][Middleware][WAF] ", r.URL.String())
 
 		url := r.URL.String()
 		detecteds := wafDetect(url, wafUrl)

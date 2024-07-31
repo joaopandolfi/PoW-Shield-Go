@@ -115,7 +115,7 @@ func (c *memCache) startGarbageCollector(tick time.Duration) {
 func (c *memCache) GarbageCollector() {
 	var toDelete []string
 	for k, val := range c.buff {
-		if val.validAt.After(time.Now()) {
+		if val.validAt.Before(time.Now()) {
 			toDelete = append(toDelete, k)
 		}
 	}

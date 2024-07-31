@@ -49,8 +49,8 @@ func PoW(next func(http.ResponseWriter, *http.Request)) http.HandlerFunc {
 		if config.Get().Pow.UseSession {
 			session = handler.GetSession(r)
 			if session == nil {
+				blockReason = "session not found"
 				cleanAll(w, r)
-				blockReason = "session found"
 				blockRequest(w)
 				return
 			}
