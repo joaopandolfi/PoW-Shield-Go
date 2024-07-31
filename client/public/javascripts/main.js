@@ -30,9 +30,9 @@ const sendResult = async (difficulty,prefix,nonce, redirect) => {
         if (redirect) {
           window.location.href = `${redirect}`
         } else {
-          window.location.href = '/'
+          window.location.href = '/public'
         }
-      }, 3000)
+      }, 1000)
     } else {
       document.querySelector('.submitting td.blink').innerHTML = 'X'
       document.querySelector('.submitting td.blink').classList.remove('blink')
@@ -48,13 +48,24 @@ const sendResult = async (difficulty,prefix,nonce, redirect) => {
   }
 }
 
+// Real consumable api example
+const checkRequest = async ()=>{
+  const response = await fetch(`${backend}/health`,{ // PROXY API REQUEST
+    method: 'GET',
+    credentials:'include'
+  })
+  if (response.status == 200) {
+    respResult =  await response.text()
+    console.log(respResult)
+  }
+}
 const getProblem = async ()=>{
   const response = await fetch(`${backend}/pow`,{
     method: 'GET'
   })
   if (response.status == 200) {
     jsonResult =  await response.json()
-    initSolver(jsonResult.difficulty, jsonResult.prefix, "")
+    initSolver(jsonResult.difficulty, jsonResult.prefix, "/welcome")
   }
 }
 
@@ -63,8 +74,8 @@ const initSolver = (difficulty, prefix, redirect) => {
     const nonce = await runSolver(difficulty, prefix)
     setTimeout(async () => {
       await sendResult(difficulty,prefix, nonce, redirect)
-    }, 500)
-  }, 1500)
+    }, 100)
+  }, 100)
 }
 
 window.init = () =>{
