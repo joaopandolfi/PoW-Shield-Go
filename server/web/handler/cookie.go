@@ -36,3 +36,10 @@ func GetCookie(r *http.Request) (*domain.Cookie, error) {
 		MaxAge:  netCookie.MaxAge,
 	}, nil
 }
+
+func CleanCookies(w http.ResponseWriter) {
+	http.SetCookie(w, &http.Cookie{
+		Name:   TOKEN_COOKIE,
+		MaxAge: -1,
+	})
+}

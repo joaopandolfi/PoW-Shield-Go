@@ -74,7 +74,8 @@ type cors struct {
 
 type session struct {
 	Name    string
-	Store   *sessions.CookieStore
+	Store   *sessions.CookieStore //*sessions.FilesystemStore
+	Fstore  *sessions.FilesystemStore
 	Options *sessions.Options
 }
 

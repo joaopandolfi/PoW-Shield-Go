@@ -35,3 +35,12 @@ func GetSession(r *http.Request) *domain.Session {
 
 	return &result
 }
+
+func CleanSessions(w http.ResponseWriter, r *http.Request) {
+	s, _ := config.Get().Session.Store.Get(r, config.Get().Session.Name)
+
+	if s != nil {
+		s.Options.MaxAge = -1
+		s.Save(r, w)
+	}
+}

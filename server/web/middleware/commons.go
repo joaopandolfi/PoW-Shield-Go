@@ -1,6 +1,14 @@
 package middleware
 
-import "net/http"
+import (
+	"net/http"
+	"pow-shield-go/web/handler"
+)
+
+func cleanAll(w http.ResponseWriter, r *http.Request) {
+	handler.CleanCookies(w)
+	handler.CleanSessions(w, r)
+}
 
 func blockRequest(w http.ResponseWriter) {
 	w.WriteHeader(http.StatusNotAcceptable)
