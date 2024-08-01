@@ -55,8 +55,8 @@ func (c *memCache) Put(key string, data interface{}, duration time.Duration) err
 }
 
 func (c *memCache) Get(key string) (interface{}, error) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
+	c.mu.RLock()
+	defer c.mu.RUnlock()
 	if val, ok := c.buff[key]; ok {
 		now := time.Now()
 		if val.validAt.After(now) {
@@ -82,8 +82,8 @@ func (c *memCache) Flush() error {
 }
 
 func (c *memCache) Size() int {
-	c.mu.Lock()
-	defer c.mu.Unlock()
+	c.mu.RLock()
+	defer c.mu.RUnlock()
 	return len(c.buff)
 }
 
@@ -114,11 +114,13 @@ func (c *memCache) startGarbageCollector(tick time.Duration) {
 
 func (c *memCache) GarbageCollector() {
 	var toDelete []string
+	c.mu.RLock()
 	for k, val := range c.buff {
 		if val.validAt.Before(time.Now()) {
 			toDelete = append(toDelete, k)
 		}
 	}
+	c.mu.RUnlock()
 
 	for _, d := range toDelete {
 		c.Delete(d)
