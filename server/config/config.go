@@ -51,14 +51,15 @@ type protectedServer struct {
 }
 
 type pow struct {
-	NonceValidity     int
-	DefaultPrefixSize int
-	Punishment        int
-	IPTollerance      int
-	UseCookie         bool
-	UseSession        bool
-	UseHeader         bool
-	Active            bool
+	NonceValidity               int
+	DefaultPrefixSize           int
+	Punishment                  int
+	IPTollerance                int
+	IPTolleranceDurationSeconds int
+	UseCookie                   bool
+	UseSession                  bool
+	UseHeader                   bool
+	Active                      bool
 }
 
 type cache struct {
@@ -128,14 +129,15 @@ func Load() error {
 			},
 		},
 		Pow: pow{
-			DefaultPrefixSize: StrTo[int](getEnvOrDefault("DEFAULT_PREFIX_SIZE", "15")),
-			Punishment:        StrTo[int](getEnvOrDefault("PUNISHMENT", "1")),
-			IPTollerance:      StrTo[int](getEnvOrDefault("IP_TOLLERANCE", "1")),
-			NonceValidity:     StrTo[int](getEnvOrDefault("NONCE_VALIDITY", "150000")), // 150 * 1000, //miliseconds -> senconds
-			UseCookie:         StrTo[bool](getEnvOrDefault("USE_COOKIE", "true")),
-			UseSession:        StrTo[bool](getEnvOrDefault("USE_SESSION", "true")),
-			UseHeader:         StrTo[bool](getEnvOrDefault("USE_HEADER", "true")),
-			Active:            StrTo[bool](getEnvOrDefault("POW_ACTIVE", "true")),
+			DefaultPrefixSize:           StrTo[int](getEnvOrDefault("DEFAULT_PREFIX_SIZE", "15")),
+			Punishment:                  StrTo[int](getEnvOrDefault("PUNISHMENT", "1")),
+			IPTollerance:                StrTo[int](getEnvOrDefault("IP_TOLLERANCE", "1")),
+			IPTolleranceDurationSeconds: StrTo[int](getEnvOrDefault("IP_TOLLERANCE_DURATION_MS", "120")),
+			NonceValidity:               StrTo[int](getEnvOrDefault("NONCE_VALIDITY", "150000")), // 150 * 1000, //miliseconds -> senconds
+			UseCookie:                   StrTo[bool](getEnvOrDefault("USE_COOKIE", "true")),
+			UseSession:                  StrTo[bool](getEnvOrDefault("USE_SESSION", "true")),
+			UseHeader:                   StrTo[bool](getEnvOrDefault("USE_HEADER", "true")),
+			Active:                      StrTo[bool](getEnvOrDefault("POW_ACTIVE", "true")),
 		},
 		ProtectedServer: protectedServer{
 			Host:           getEnvOrDefault("PROTECTED_SERVER_HEADERS", "http://localhost:3001"),

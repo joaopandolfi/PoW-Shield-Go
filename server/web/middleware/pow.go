@@ -28,6 +28,7 @@ func PoW(next func(http.ResponseWriter, *http.Request)) http.HandlerFunc {
 			}
 		}()
 
+		var session *domain.Session
 		if config.Get().Pow.UseCookie {
 			cookie, err := handler.GetCookie(r)
 			if err != nil {
@@ -43,9 +44,10 @@ func PoW(next func(http.ResponseWriter, *http.Request)) http.HandlerFunc {
 				blockRequest(w)
 				return
 			}
+
+			session = cookie.ToSession()
 		}
 
-		var session *domain.Session
 		if config.Get().Pow.UseSession {
 			session = handler.GetSession(r)
 		}

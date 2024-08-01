@@ -19,3 +19,13 @@ type Cookie struct {
 	Secure   bool
 	HttpOnly bool
 }
+
+func (d *Cookie) ToSession() *Session {
+	var session Session
+	err := session.Unrap(d.Value)
+	if err != nil {
+		return nil
+	}
+
+	return &session
+}

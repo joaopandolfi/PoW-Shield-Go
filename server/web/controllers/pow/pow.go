@@ -25,22 +25,23 @@ import (
 const sessionKeyID = "session:"
 
 type controller struct {
-	s                    *server.Server
-	verifier             pow.Verifier
-	generator            pow.Generator
-	cache                cache.Cache
-	ipTollerance         int
-	defaultCacheDuration time.Duration
+	s                           *server.Server
+	verifier                    pow.Verifier
+	generator                   pow.Generator
+	cache                       cache.Cache
+	ipTollerance                int
+	defaultIPTolleranceDuration time.Duration
 }
 
 // New controller
 func New(generator pow.Generator, verifier pow.Verifier) controllers.Controller {
 	return &controller{
-		s:            nil,
-		generator:    generator,
-		verifier:     verifier,
-		cache:        cache.Get(),
-		ipTollerance: config.Get().Pow.IPTollerance,
+		s:                           nil,
+		generator:                   generator,
+		verifier:                    verifier,
+		cache:                       cache.Get(),
+		ipTollerance:                config.Get().Pow.IPTollerance,
+		defaultIPTolleranceDuration: time.Duration(config.Get().Pow.IPTolleranceDurationSeconds) * time.Second,
 	}
 }
 
@@ -54,7 +55,11 @@ func (c *controller) sessionIDFromRequest(r *http.Request) string {
 	return strID
 }
 
-func (c *controller) getSession(r *http.Request) *domain.Session {
+func (c *controller) maskSessionID(id string) string {
+	return sessionKeyID + id
+}
+
+func (c *controller) getSession(r *http.Request, reusePunishment int) *domain.Session {
 	var session *domain.Session
 	if config.Get().Pow.UseSession {
 		session = handler.GetSession(r)
@@ -72,19 +77,20 @@ func (c *controller) getSession(r *http.Request) *domain.Session {
 	}
 
 	if session == nil {
-		reqSessionID := c.sessionIDFromRequest(r)
-		sessionID := reqSessionID
+		sessionID := c.sessionIDFromRequest(r)
+		reqSessionID := c.maskSessionID(sessionID)
 		reuseCount := 1
 		sessionCount, _ := c.cache.Get(reqSessionID)
 		if sessionCount != nil {
 			if count, ok := sessionCount.(int); ok {
-				if count > c.ipTollerance {
+				if count < c.ipTollerance {
 					sessionID = uuid.New().String()
+					reqSessionID = c.maskSessionID(sessionID)
 				}
-				reuseCount = count + 1
+				reuseCount = count + reusePunishment
 			}
 		}
-		c.cache.Put(reqSessionID, reuseCount, c.defaultCacheDuration)
+		c.cache.Put(reqSessionID, reuseCount, c.defaultIPTolleranceDuration)
 		session = domain.NewSession(sessionID)
 	}
 
@@ -93,7 +99,7 @@ func (c *controller) getSession(r *http.Request) *domain.Session {
 
 // challenge - get PoW challenge
 func (c *controller) challenge(w http.ResponseWriter, r *http.Request) {
-	session := c.getSession(r)
+	session := c.getSession(r, 1)
 
 	challenge, err := c.generator.Problem(r.Context(), session)
 	if err != nil {
@@ -116,7 +122,7 @@ func (c *controller) challenge(w http.ResponseWriter, r *http.Request) {
 
 // verify - verify PoW challenge
 func (c *controller) verify(w http.ResponseWriter, r *http.Request) {
-	session := c.getSession(r)
+	session := c.getSession(r, 0)
 
 	b, err := io.ReadAll(r.Body)
 	if err != nil {

@@ -27,5 +27,7 @@ func IP(r *http.Request) string {
 	if parsedIP != nil {
 		ip = string(parsedIP)
 	}
+	splitedIP := strings.Split(ip, ":")
+	ip = strings.Join(splitedIP[:len(splitedIP)-1], ":")
 	return fmt.Sprintf("%s %s", ip, r.Header.Get("X-Real-Ip"))
 }
