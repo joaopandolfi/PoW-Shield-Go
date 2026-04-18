@@ -1,154 +1,168 @@
 # Bugs and Issues Report
 
-## Critical Bugs
+## Critical Bugs — RESOLVIDOS ✅
 
-### 1. Redis `Get()` -- Hardcoded Key Literal
+### 1. Redis `Get()` -- Hardcoded Key ✅ FIXED
 - **File:** `server/internal/cache/redis.go:53`
-- **Issue:** `c.client.Get(c.ctx, "key")` uses the literal string `"key"` instead of the `key` variable
-- **Impact:** Redis cache completely non-functional -- all `Get()` calls return the same value regardless of the requested key, or always return `redis.Nil`
-- **Fix:** `c.client.Get(c.ctx, key)`
+- **Issue:** `c.client.Get(c.ctx, "key")` usa string literal `"key"` ao invés da variável `key`
+- **Fix Applied:** `c.client.Get(c.ctx, key)` — commit `01f4e51`
 
 ```diff
 - val, err := c.client.Get(c.ctx, "key").Result()
 + val, err := c.client.Get(c.ctx, key).Result()
 ```
 
-### 2. WAF Middleware Consumes Body Without Restoring
-- **File:** `server/web/middleware/waf.go:93-109`
-- **Issue:** `io.ReadAll(r.Body)` reads the entire request body but the body is never restored with `io.NopCloser(bytes.NewReader(body))` before calling `next(w, r)`
-- **Impact:** All proxied requests with a body receive an empty body -- the downstream proxy handler gets nothing. PUT/POST requests to the backend will fail silently
-- **Fix:** Restore body after WAF inspection:
+### 2. WAF Middleware Consome Body Sem Restaurar ✅ FIXED
+- **File:** `server/web/middleware/waf.go`
+- **Issue:** `io.ReadAll(r.Body)` consome o body mas não restaura com `io.NopCloser`
+- **Fix Applied:** Body restaurado com `r.Body = io.NopCloser(bytes.NewReader(body))`
+- **Impact:** POST/PUT requests agora são encaminhados corretamente ao backend
 
-```diff
- detecteds = wafDetect(string(body), wafBody)
- if len(detecteds) > 0 {
-     log.Println("[*][Middleware][Waf] BODY RULE TRIGGERED: ", detecteds, "on: ", url)
-     blockRequest(w)
-     return
- }
- 
-+r.Body = io.NopCloser(bytes.NewReader(body))
- next(w, r)
-```
-
-### 3. Proxy Double Body Read
-- **File:** `server/web/controllers/proxy/proxy.go:28`
-- **Issue:** The proxy handler reads `r.Body` via `io.ReadAll(r.Body)` at line 28. If the WAF middleware is enabled (default), the body has already been consumed and closed at `waf.go:93-99` (which also calls `r.Body.Close()`)
-- **Impact:** Under WAF-active configuration (the default), the proxy always gets an empty body and returns `400 Bad Request` for any POST/PUT request. Even without WAF, the body is consumed once by WAF, making proxy body forwarding unreliable
-- **Fix:** Use `io.NopCloser(bytes.NewReader(body))` in WAF to restore body (see bug #2), which resolves this issue
+### 3. Proxy Double Body Read ✅ FIXED
+- **File:** `server/web/controllers/proxy/proxy.go`
+- **Issue:** Proxy lia `r.Body` via `io.ReadAll` após WAF ter consumido
+- **Fix Applied:** Resolvido pela correção do bug #2 (WAF restaura body antes de chamar next)
 
 ---
 
-## High Severity Issues
+## High Severity Issues — RESOLVIDOS ✅
 
-### 4. In-Memory Cache Buffer Overflow -- No Eviction Strategy
-- **File:** `server/internal/cache/memory.go:44-46`
-- **Issue:** `MAX_BUFF_SIZE = 150` hard limit, no eviction strategy. When buffer reaches 150 entries, ALL subsequent `Put()` calls fail with "buffer overflow" error
-- **Impact:** Under moderate load (150 concurrent sessions), new challenge generation fails and service returns 500 errors. No graceful degradation
-- **Recommended Fix:** Implement TTL-based eviction (already partially present via `validAt`) or LRU eviction policy
+### 4. In-Memory Cache Buffer Overflow ✅ FIXED
+- **File:** `server/internal/cache/memory.go:45-59`
+- **Issue:** `MAX_BUFF_SIZE = 150` limit sem eviction strategy
+- **Fix Applied:** Implemented TTL-based eviction — removes expired entries when buffer reaches limit before failing
+- **Current behavior:** `Put()` now evicts oldest expired entries instead of returning "buffer overflow" error
 
-```go
-// Current -- rejects all inserts when full
-if len(c.buff) > MAX_BUFF_SIZE {
-    return fmt.Errorf("buffer overflow")
-}
+### 5. Hardcoded CookieStore Secret ✅ FIXED
+- **File:** `server/config/config.go:129-143`
+- **Issue:** CookieStore usava secret hardcoded `"12345670101112ABC"`
+- **Fix Applied:** Session uses `sessionPass()` function that:
+  - Uses `SESSION_PASS` env var if set
+  - Generates random 32-byte key via `crypto/rand` if not set
+  - Falls back to development key only on crypto failure
+- **Log:** `[!][Config] SESSION_PASS not set, generated ephemeral random key`
 
-// Recommended -- remove this check, rely on GarbageCollector
-```
-
-### 5. Hardcoded CookieStore Secret -- Security Risk
-- **File:** `server/config/config.go:123`
-- **Issue:** CookieStore uses hardcoded secret `"12345670101112ABC"` in production default
-- **Impact:** Anyone can forge valid sessions for any protected instance
-- **Recommended Fix:** Generate a random secret on first run and store it, or enforce environment variable setting
+### 6. Proxy Transport Disables TLS Verification ✅ FIXED
+- **File:** `server/internal/request/request.go:16-24`
+- **Issue:** `TLSClientConfig: &tls.Config{InsecureSkipVerify: true}` hardcoded
+- **Fix Applied:** TLS verification now configurable via `PROTECTED_SERVER_INSECURE_SKIP_VERIFY` env var (default: `false`)
+- **Config:** `InsecureSkipVerify: StrTo[bool](getEnvOrDefault("PROTECTED_SERVER_INSECURE_SKIP_VERIFY", "false"))`
 
 ---
 
-## Medium Severity Issues
+## Medium Severity Issues — RESOLVIDOS ✅
 
-### 6. Proxy Transport Disables TLS Verification
-- **File:** `server/internal/request/request.go:20`
-- **Issue:** `TLSClientConfig: &tls.Config{InsecureSkipVerify: true}` -- TLS certificate verification is completely bypassed
-- **Impact:** The proxy is vulnerable to man-in-the-middle attacks on the connection to the protected backend. SSL pinning is completely bypassed
-- **Recommended Fix:** Use default transport or configure proper CA certs:
-```diff
-- TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
-+ // Use default transport with proper verification
-```
+### 7. IP() Helper Produces Malformed IP Strings ✅ FIXED
+- **File:** `server/web/handler/request.go:23-38`
+- **Issue:** Concatenava `RemoteAddr` com `X-Real-Ip` incorretamente
+- **Fix Applied:** IP extraction now:
+  1. Parses `RemoteAddr` to extract IP without port
+  2. Uses `X-Real-Ip` header when present (from reverse proxy)
+  3. Falls back to parsed `RemoteAddr` when no header
+- **Result:** Clean IP strings without trailing spaces or format issues
 
-### 7. IP() Helper Produces Malformed IP Strings
-- **File:** `server/web/handler/request.go:32`
-- **Issue:** `IP()` concatenates the stripped `RemoteAddr` with `X-Real-Ip` with a space separator: `fmt.Sprintf("%s %s", ip, r.Header.Get("X-Real-Ip"))`. If `X-Real-Ip` header is empty (no reverse proxy), the result is `"192.168.1.1 "` (trailing space)
-- **Impact:** SHA1 hashes in the identificator middleware include trailing spaces for direct connections, producing inconsistent session IDs. When behind a reverse proxy, the hash combines two values into one string
-- **Recommended Fix:** Handle empty `X-Real-Ip` separately, or use `X-Real-Ip` exclusively when present
-
-### 8. Redis Test Won't Compile
+### 8. Redis Test Won't Compile ✅ FIXED
 - **File:** `server/internal/cache/redis_test.go`
-- **Issue:** 
-  - References `cfg.Cache.Redis.Port` which doesn't exist (struct has `Server` field, no `Port` field)
-  - Calls `GetRedis()` without context but the signature is `GetRedis(ctx context.Context)`
-  - Sets `Port = "333"` but struct only has `Server`, `Password`, `DB`, `Use`
-- **Impact:** No Redis integration tests can run. Redis backend is untested
+- **Issue:** Referenciava campos inexistentes (`Port`) e chamar `GetRedis()` sem context
+- **Fix Applied:** Test reescrito para usar API correta:
+  - Uses `cfg.Cache.Redis.Server` (existing field)
+  - Calls `initializeRedis(ctx, ...)` directly with context
+  - Uses renamed `GracefulShutdown()` method
 
-### 9. 10-Minute Proxy Timeout
-- **File:** `server/internal/request/request.go:15`
-- **Issue:** `defaultTimeout time.Duration = time.Minute * 10` -- extremely long timeout for a reverse proxy
-- **Impact:** Slow connections or unresponsive backends hold connections for up to 10 minutes, exhausting server resources. Connection pool exhaustion under load
+### 9. 10-Minute Proxy Timeout ✅ FIXED
+- **File:** `server/internal/request/request.go`
+- **Issue:** `defaultTimeout time.Duration = time.Minute * 10` extremament longo
+- **Fix Applied:** Timeout configurable via `PROTECTED_SERVER_TIMEOUT_SECONDS` env var (default: 30s)
+- **Config:** `Timeout: time.Duration(StrTo[int](getEnvOrDefault("PROTECTED_SERVER_TIMEOUT_SECONDS", "30"))) * time.Second`
 
-### 10. `respond.go:50` -- `compressB` Used Before Assignment in Error Path
+### 10. `compressB` Used Before Assignment in Error Path ✅ VERIFIED
 - **File:** `server/internal/request/request.go:84`
-- **Issue:** If `compressB.ReadFrom(r)` fails, function returns `b` (not `compressB`), but `compressB` was declared in the preceding outer scope
-- **Impact:** Minor -- returns the zero value of `b` which is `nil`, but the error is correct
+- **Issue:** Se `compressB.ReadFrom(r)` falha, retorna `b` (valor zero)
+- **Status:** Minor issue — retorna `nil` corretamente com erro adequado
+- **No action needed** — error handling is correct
 
 ---
 
-## Configuration Issues
+## Configuration Issues — RESOLVIDOS ✅
 
-### 11. Environment Variable Default Mismatch
-- **File:** `.env.example` vs `config/config.go`
-- **Issue:** `.env.example` sets `USE_COOKIE=false` as the example default, but `config/config.go:138` defaults `USE_COOKIE` to `true`. Same for `USE_SESSION` and `USE_HEADER`
-- **Impact:** Developers following `.env.example` get different behavior than the actual defaults. If only `REDIS_USE=false` is in `.env` without setting PoW transports, the service won't initialize (the validation at line 168)
+### 11. Environment Variable Default Mismatch ✅ FIXED
+- **Files:** `.env.example` vs `config/config.go`
+- **Issue:** `.env.example` mostrava valores inconsistentes com defaults do código
+- **Fix Applied:**
+  - `USE_COOKIE=true` (was: commented/missing in .env.example)
+  - `USE_SESSION=true` (was: commented/missing in .env.example)
+  - `USE_HEADER=true` (was: commented/missing in .env.example)
+  - Added default values for `WHITELIST_*_RULES` as `[]` in code
+  - Added `PROTECTED_SERVER_TIMEOUT_SECONDS=30` with proper default
+  - Added `PROTECTED_SERVER_INSECURE_SKIP_VERIFY=false` with secure default
+  - Added `RATE_LIMIT_*` configuration with sensible defaults
+  - Added `METRICS_*` configuration
 
-### 12. `SESSION_SECURE=true` Blocks Development
-- **File:** `config/config.go:129`
-- **Issue:** Session cookies are marked `Secure` by default (requires HTTPS). In local development without TLS, cookies are never sent by browsers
-- **Impact:** Development requires setting `SESSION_SECURE=false`. No automatic fallback based on TLS configuration
+### 12. `SESSION_SECURE` Blocks Development ✅ FIXED
+- **File:** `server/config/config.go:182`
+- **Issue:** Cookies marcados como `Secure` por padrão, bloqueando HTTP local
+- **Fix Applied:** `SESSION_SECURE` defaults to `USE_TLS` value:
+  ```go
+  Secure: StrTo[bool](getEnvOrDefault("SESSION_SECURE", fmt.Sprintf("%t", StrTo[bool](getEnvOrDefault("USE_TLS", "false")))))
+  ```
+- **Result:** `Secure=false` when TLS disabled, `Secure=true` when TLS enabled
 
 ---
 
-## Low Severity / Cosmetic Issues
+## Low Severity / Cosmetic Issues — RESOLVIDOS ✅
 
-### 13. Function Name Typo: `gracefullShutdown`
-- **Files:** `server/main.go:31`, `server/internal/cache/memory.go:130`, `server/internal/cache/redis.go:72`
-- **Issue:** "Graceful" misspelled as "gracefull" (double L)
-- **Status:** Cosmetic -- affects no functionality
+### 13. Function Name Typo: `gracefullShutdown` ✅ FIXED
+- **Files:** `main.go`, `memory.go`, `redis.go`
+- **Issue:** "Graceful" misspelled as "gracefull"
+- **Fix Applied:** Renamed to `GracefulShutdown()` / `gracefulShutdown()` across all files
 
-### 14. Comment Typo: "ised" in injectable.go
+### 14. Comment Typo: "ised" in injectable.go ✅ FIXED
 - **File:** `server/internal/cache/injectable.go:13`
-- **Issue:** "lateInitCache is ised to inject" should be "is used to inject"
-- **Status:** Cosmetic
+- **Issue:** "is ised" → "is used"
+- **Fix Applied:** Comment corrected
 
-### 15. Function Name Typo: `NewGerator()`
+### 15. Function Name Typo: `NewGerator()` ✅ FIXED
 - **File:** `server/services/pow/generator.go:23`
 - **Issue:** "Generator" misspelled as "Gerator"
-- **Status:** Affects public API naming
+- **Fix Applied:** Renamed to `NewGenerator()`
 
-### 16. Function Name Typo: `NewVerifier()` -- Parameter named `compelexity`
-- **File:** `server/services/pow/verifier.go:35`
-- **Issue:** "Complexity" misspelled as "compelexity" in function signature
-- **Status:** Cosmetic, affects API
+### 16. Function Name Typo: `compelexity` ✅ FIXED
+- **File:** `server/services/pow/verifier.go`
+- **Issue:** Parameter named `compelexity` (typo in signature)
+- **Fix Applied:** Renamed to `complexity` in interface and implementation
 
-### 17. `wafTypes.json` Unused
+### 17. `wafTypes.json` Unused ✅ FIXED
 - **File:** `server/wafTypes.json`
-- **Issue:** File defines integer-to-name mappings for WAF rule types but no Go code reads or references it
-- **Status:** Dead code
+- **Issue:** Arquivo definido mas não consumido pelo Go code
+- **Fix Applied:** WAF types now loaded in `waf.go:37-46` with fallback for string keys
+- **Config:** `server/config/config.go:225` reads `WAF_TYPES_FILE` env var
 
-### 18. `errors.go` Incomplete
+### 18. `errors.go` Incomplete ✅ FIXED
 - **File:** `server/web/errors.go`
-- **Issue:** Only defines `ErrorCodeInternal = 10` and `ErrorMessageInternal = "internal error"`, neither of which are used anywhere in the codebase
-- **Status:** Placeholder, not consumed
+- **Issue:** Apenas `ErrorCodeInternal = 10` definido e não utilizado
+- **Fix Applied:** Expanded with proper error codes:
+  - `ErrorCodeBadRequest = 11`
+  - `ErrorCodeForbidden = 12`
+  - `ErrorCodeRateLimited = 13`
+  - `ErrorCodeUnavailable = 14`
+  - `ErrorCodeNotAcceptable = 15`
+  - `DefaultErrorForStatus()` helper function for HTTP status → error mapping
 
-### 19. `permissions.go` Unused
+### 19. `permissions.go` Unused ℹ️ ACCEPTED
 - **File:** `server/models/permissions.go`
-- **Issue:** Only contains `PermissionSystem = "system"`, never referenced
-- **Status:** Placeholder
+- **Issue:** Apenas contém `PermissionSystem = "system"`, nunca referenciado
+- **Status:** Placeholder para futura feature de RBAC — mantido como stub
+
+---
+
+## New Features Added
+
+| Feature | Files | Description |
+|---------|-------|-------------|
+| Rate Limiting | `middleware/rate_limit.go` | Sliding window rate limiter per IP |
+| Prometheus Metrics | `metrics/metrics.go`, `metrics.go` | HTTP metrics with Prometheus format |
+| Docker Support | `Dockerfile`, `docker-compose.yml` | Container deployment support |
+| Health Check | `health/health.go` | POST/GET/HEAD `/health` endpoints |
+| Session Store Options | `handler/session.go` | CookieStore session options configuration |
+| Proxy Headers | `proxy/proxy.go` | Custom headers for proxied requests |
+
