@@ -45,5 +45,5 @@ func TestRedisCache(t *testing.T) {
 		t.Fatalf("expected nil after delete, got %v", val)
 	}
 
-	c.GracefullShutdown()
+	c.GracefulShutdown()
 }

@@ -14,7 +14,7 @@ const minNonceSize = 8
 const maxNonceSize = 32
 
 type Verifier interface {
-	Verify(ctx context.Context, session *domain.Session, nonce []byte, compelexity int, prefix string) (bool, error)
+	Verify(ctx context.Context, session *domain.Session, nonce []byte, complexity int, prefix string) (bool, error)
 }
 
 type verifier struct {
@@ -32,7 +32,7 @@ func NewVerifier() Verifier {
 }
 
 // Verify nonce
-func (s *verifier) Verify(ctx context.Context, session *domain.Session, nonce []byte, compelexity int, prefix string) (bool, error) {
+func (s *verifier) Verify(ctx context.Context, session *domain.Session, nonce []byte, complexity int, prefix string) (bool, error) {
 
 	success := false
 	key := CacheKey(session.ID, prefix)
@@ -71,7 +71,7 @@ func (s *verifier) Verify(ctx context.Context, session *domain.Session, nonce []
 		return false, fmt.Errorf("hashing nonce: %w", err)
 	}
 
-	valid, err := utils.CheckComplexity(hash, compelexity)
+	valid, err := utils.CheckComplexity(hash, complexity)
 	if err != nil {
 		return false, fmt.Errorf("checking complexity: %w", err)
 	}

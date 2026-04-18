@@ -116,8 +116,8 @@ func (c *memCache) startGarbageCollector(tick time.Duration) {
 			case <-ticker.C:
 				c.GarbageCollector()
 			case <-c.ctx.Done():
-				log.Println("[LOCAL_CACHE][Context done] Calling gracefullShutdown")
-				c.GracefullShutdown()
+				log.Println("[LOCAL_CACHE][Context done] Calling gracefulShutdown")
+				c.GracefulShutdown()
 			}
 		}
 	}()
@@ -138,7 +138,7 @@ func (c *memCache) GarbageCollector() {
 	}
 }
 
-func (c *memCache) GracefullShutdown() {
+func (c *memCache) GracefulShutdown() {
 	if c.garbageStop != nil {
 		c.garbageStop <- true
 	}

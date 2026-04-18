@@ -13,7 +13,7 @@ type SafeCache[T any] interface {
 	PutDuration(key string, data T, duration time.Duration) error
 	Size() int
 	Flush() error
-	GracefullShutdown()
+	GracefulShutdown()
 }
 
 type tCache[T any] struct {
@@ -76,8 +76,8 @@ func (m *tCache[T]) Flush() error {
 	return nil
 }
 
-func (m *tCache[T]) GracefullShutdown() {
+func (m *tCache[T]) GracefulShutdown() {
 	if m.cache != nil {
-		m.cache.GracefullShutdown()
+		m.cache.GracefulShutdown()
 	}
 }

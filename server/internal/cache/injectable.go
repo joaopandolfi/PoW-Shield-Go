@@ -10,7 +10,7 @@ type cacheInjectable interface {
 	inject(c Cache)
 }
 
-// lateInitCache is ised to inject cache on struct after a signal
+// lateInitCache is used to inject cache on struct after a signal
 func lateInitCache(c cacheInjectable) {
 	if err := recover(); err != nil {
 		utils.Debug("[CACHE][Async loading] waiting for ready cache signal")

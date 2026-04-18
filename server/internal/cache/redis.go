@@ -69,15 +69,15 @@ func (c *redisCache) Size() int {
 func (c *redisCache) Flush() error {
 	return nil
 }
-func (c *redisCache) GracefullShutdown() {
+func (c *redisCache) GracefulShutdown() {
 	c.client.Close()
 }
 
 func (c *redisCache) ctxHandlerCloser() {
 	for {
 		<-c.ctx.Done()
-		log.Println("[REDIS_CACHE][Context done] Calling gracefullShutdown")
-		c.GracefullShutdown()
+		log.Println("[REDIS_CACHE][Context done] Calling gracefulShutdown")
+		c.GracefulShutdown()
 		return
 	}
 }

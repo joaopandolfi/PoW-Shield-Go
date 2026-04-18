@@ -20,7 +20,7 @@ type Cache interface {
 	Delete(key string) error
 	Size() int
 	Flush() error
-	GracefullShutdown()
+	GracefulShutdown()
 }
 
 func Initialize(ctx context.Context, tick time.Duration) Cache {

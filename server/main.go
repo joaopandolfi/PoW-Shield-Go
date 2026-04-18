@@ -27,11 +27,11 @@ func configInit(ctx context.Context) error {
 	return nil
 }
 
-func gracefullShutdown() {
+func gracefulShutdown() {
 	fmt.Println("<====================================Shutdown==================================>")
 	c := cache.Get()
 	if c != nil {
-		c.GracefullShutdown()
+		c.GracefulShutdown()
 	}
 }
 
@@ -73,7 +73,7 @@ func main() {
 
 	<-done
 	log.Println("[SERVER] Gracefully shutdown start")
-	gracefullShutdown()
+	gracefulShutdown()
 
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	if err := srv.Shutdown(ctx); err != nil {

@@ -31,7 +31,7 @@ func (r *Router) Setup() {
 	r.s.R.Use(middleware.Identificator)
 
 	static.New().SetupRouter(r.s)
-	generator := powServices.NewGerator()
+	generator := powServices.NewGenerator()
 	verifier := powServices.NewVerifier()
 
 	pow.New(generator, verifier).SetupRouter(r.createSubRouter("/pow"))

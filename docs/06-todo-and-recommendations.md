@@ -14,6 +14,12 @@
   - Current: `session:<sha1_hash>:<nonce_prefix>`
   - Benefit: Allows cache key rotation on prefix change
 
+### Code Quality Fixes
+- [x] Fix `gracefullShutdown` typo → `GracefulShutdown()`
+- [x] Fix `NewGerator` typo → `NewGenerator()`
+- [x] Fix `compelexity` parameter name → `complexity`
+- [x] Fix "ised" comment typo → "is used"
+
 ---
 
 ## Missing Frontend Assets

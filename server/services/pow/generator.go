@@ -20,7 +20,7 @@ type generator struct {
 	cache                cache.Cache
 }
 
-func NewGerator() Generator {
+func NewGenerator() Generator {
 	return &generator{
 		defaultProblemLength: config.Get().Pow.DefaultPrefixSize,
 		punishment:           config.Get().Pow.Punishment,
