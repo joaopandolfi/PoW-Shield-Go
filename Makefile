@@ -1,5 +1,8 @@
 
 .PHONY: build-front-tools
+GO=env -u GOROOT go
+
+.PHONY: build-front-tools
 front-build-tools:
 	@echo "installing nodejs libs"
 	@cd client && npm install
@@ -17,7 +20,11 @@ build-front-beauty:
 
 .PHONY: build-backend
 build-backend:
-	@cd server && go get && go build
+	@cd server && $(GO) get && $(GO) build
+
+.PHONY: test-backend
+test-backend:
+	@cd server && $(GO) test ./...
 
 .PHONY: run-backend
 run-backend: 
@@ -25,4 +32,4 @@ run-backend:
 
 .PHONY: check-vuln
 check-vuln:
-	@cd server && govulncheck ./...
+	@cd server && env -u GOROOT govulncheck ./...
