@@ -121,6 +121,20 @@ PROTECTED_SERVER_HEADERS=["X-Forwarded-For":"127.0.0.1","X-Real-IP":"192.168.1.1
 
 When `ADMIN_KEY` is set, cookie authentication is optional — header auth can be used as the sole method.
 
+### SPA Assets Packaging
+
+Admin HTML files are embedded into the Go binary at compile time using `//go:embed static/admin/*` directive in `server/web/controllers/admin/admin.go`. Files are stored at `server/web/controllers/admin/static/admin/`:
+
+| File | Location | Purpose |
+|------|-----|---|
+| `login.html` | `server/web/controllers/admin/static/admin/login.html` | Login page with inline CSS/JS |
+| `dashboard.html` | `server/web/controllers/admin/static/admin/dashboard.html` | Main dashboard with metrics display |
+| `index.html` | `server/web/controllers/admin/static/admin/index.html` | Alternative dashboard page |
+
+The `GET /admin/{filename}` handler reads files via `embed.FS.ReadFile()` and serves them with `Content-Type: text/html; charset=utf-8`. No filesystem access is required at runtime for admin SPA files.
+
+Shared static assets (CSS, JS, images) are served from the filesystem at `client/public/` via `admin/static/{path}` and `/public/{path}` routes.
+
 ---
 
 ## Configuration Precedence

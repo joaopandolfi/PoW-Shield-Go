@@ -18,6 +18,9 @@
 - [x] TLS configuration for proxy transport
 - [x] Structured JSON logging (log/slog)
 - [x] Admin dashboard (/admin)
+- [x] Admin SPA with configurable path, auth check endpoint, and relative API paths
+- [x] Admin SPA HTML files embedded into Go binary via embed.FS
+- [x] Fixed template literal syntax in dashboard.html
 
 ## Remaining Items 🚧
 

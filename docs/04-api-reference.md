@@ -238,7 +238,7 @@ The admin panel is a client-side SPA served at the configurable admin path (defa
 - `ADMIN_KEY` — optional API key for header-based auth via `X-Admin-Key`
 
 **Authentication:**
-Admin endpoints accept either a cookie (`admin_session=admim`) or the `X-Admin-Key` header when configured.
+Admin endpoints accept either a cookie (`admin_session=admin`) or the `X-Admin-Key` header when configured.
 
 ### `GET /admin/api/check`
 
@@ -337,16 +337,35 @@ Resets all collected metrics. Protected after reset.
 |-----|-----|--|
 | 200 | `application/json` | `{"status": "ok", "message": "Metrics reset successful"}` |
 
-### Static Files
+### SPA File Serving
 
 #### `GET /admin/{filename}`
 
-Serves SPA files from `client/public/admin/`. Protected — redirects unauthenticated requests to `/admin/login`.
+Serves admin SPA HTML files from embedded filesystem (`server/web/controllers/admin/static/admin/`). Protected — redirects unauthenticated requests to `/admin/login`.
+
+**Files:**
 
 | File | Purpose |
-|------|---------|
+|------|-------|
 | `login.html` | Login page with inline CSS/JS |
 | `dashboard.html` | Dashboard with stats, config, and WAF blocks display |
+| `index.html` | Alternative admin dashboard page |
+
+**Implementation:** Files are embedded into the Go binary using `//go:embed static/admin/*` directive in `admin.go`, served via `embed.FS.ReadFile()`.
+
+#### `GET /admin/static/{path}`
+
+Serves shared static assets from `client/public/` on the filesystem. No authentication required.
+
+**Files served:**
+
+| File | Purpose |
+|------|-------|
+| `stylesheets/style.css` | Common styles |
+| `javascripts/main.js` | PoW solver frontend |
+| `javascripts/config.js` | PoW configuration |
+| `javascripts/bundle.min.js` | Compiled PoW solver |
+| `imgs/logo.png` | Brand logo |
 
 #### `GET /admin/static/{path}`
 
