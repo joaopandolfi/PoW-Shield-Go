@@ -2,10 +2,10 @@ package middleware
 
 import (
 	"fmt"
-	"log"
 	"net/http"
 	"pow-shield-go/config"
 	"pow-shield-go/internal/cache"
+	"pow-shield-go/internal/logging"
 	"pow-shield-go/internal/metrics"
 	"pow-shield-go/models/domain"
 	powServices "pow-shield-go/services/pow"
@@ -24,10 +24,13 @@ func PoW(next func(http.ResponseWriter, *http.Request)) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		success := false
 		blockReason := ""
+		log := logging.Get()
 		defer func() {
 			if !success {
 				metrics.IncPoWBlocked()
-				log.Println("[+][Middleware][PoW] Blocking access to", r.URL.String(), handler.IP(r), "-", blockReason)
+				if log != nil {
+					log.Warn("PoW access blocked", "url", r.URL.String(), "ip", handler.IP(r), "reason", blockReason)
+				}
 			}
 		}()
 

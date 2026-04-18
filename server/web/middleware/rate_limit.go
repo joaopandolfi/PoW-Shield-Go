@@ -1,13 +1,12 @@
 package middleware
 
 import (
-	"fmt"
-	"log"
 	"net/http"
 	"pow-shield-go/config"
 	"pow-shield-go/internal/cache"
+	"pow-shield-go/internal/logging"
 	"pow-shield-go/internal/metrics"
-	"pow-shield-go/web/handler"
+	powHandler "pow-shield-go/web/handler"
 	"strconv"
 	"time"
 )
@@ -48,14 +47,17 @@ func RateLimit(next func(http.ResponseWriter, *http.Request)) http.HandlerFunc {
 			return
 		}
 
-		ip := handler.IP(r)
+		log := logging.Get()
+		ip := powHandler.IP(r)
 		key := rateLimitKey(ip)
 		count := 0
 
 		val, err := rateCache.Get(key)
 		if err != nil {
-			log.Println("[!][Middleware][RateLimit] cache get:", err.Error())
-			handler.RespondDefaultError(w, http.StatusInternalServerError)
+			if log != nil {
+				log.Error("Rate limit cache get error", "error", err.Error())
+			}
+			powHandler.RespondDefaultError(w, http.StatusInternalServerError)
 			return
 		}
 		if val != nil {
@@ -65,16 +67,20 @@ func RateLimit(next func(http.ResponseWriter, *http.Request)) http.HandlerFunc {
 		count++
 		window := time.Duration(cfg.WindowSeconds) * time.Second
 		if err := rateCache.Put(key, count, window); err != nil {
-			log.Println("[!][Middleware][RateLimit] cache put:", err.Error())
-			handler.RespondDefaultError(w, http.StatusInternalServerError)
+			if log != nil {
+				log.Error("Rate limit cache put error", "error", err.Error())
+			}
+			powHandler.RespondDefaultError(w, http.StatusInternalServerError)
 			return
 		}
 
 		if count > cfg.Requests {
 			metrics.IncRateLimited()
-			log.Println("[+][Middleware][RateLimit] blocking", ip, fmt.Sprintf("%d/%d", count, cfg.Requests))
+			if log != nil {
+				log.Warn("Rate limit exceeded", "ip", ip, "count", count, "limit", cfg.Requests)
+			}
 			w.Header().Set("Retry-After", strconv.Itoa(cfg.WindowSeconds))
-			handler.RespondDefaultError(w, http.StatusTooManyRequests)
+			powHandler.RespondDefaultError(w, http.StatusTooManyRequests)
 			return
 		}
 

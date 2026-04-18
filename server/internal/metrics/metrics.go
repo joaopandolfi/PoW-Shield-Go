@@ -90,3 +90,37 @@ func Prometheus() string {
 
 	return b.String()
 }
+
+func GetMetricsSnapshot() map[string]interface{} {
+	wafMu.RLock()
+	defer wafMu.RUnlock()
+
+	wafCountsMap := map[string]interface{}{}
+	for key, counter := range wafCounts {
+		wafCountsMap[key] = counter.Load()
+	}
+
+	return map[string]interface{}{
+		"total_requests":    totalRequests.Load(),
+		"proxied_requests":  proxiedRequests.Load(),
+		"blocked_responses": blockedResponses.Load(),
+		"pow_blocked":       powBlocked.Load(),
+		"rate_limited":      rateLimited.Load(),
+		"cache_size":        cache.Get().Size(),
+		"waf_blocked":       wafCountsMap,
+	}
+}
+
+func ResetMetrics() {
+	totalRequests.Store(0)
+	proxiedRequests.Store(0)
+	blockedResponses.Store(0)
+	powBlocked.Store(0)
+	rateLimited.Store(0)
+
+	wafMu.Lock()
+	defer wafMu.Unlock()
+	for k := range wafCounts {
+		delete(wafCounts, k)
+	}
+}

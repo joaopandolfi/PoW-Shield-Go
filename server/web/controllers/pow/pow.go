@@ -5,14 +5,14 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"io"
-	"log"
 	"net/http"
 	"pow-shield-go/config"
 	"pow-shield-go/internal/cache"
+	"pow-shield-go/internal/logging"
 	"pow-shield-go/models/domain"
 	"pow-shield-go/services/pow"
 	"pow-shield-go/web/controllers"
-	"pow-shield-go/web/handler"
+	powHandler "pow-shield-go/web/handler"
 	"pow-shield-go/web/middleware"
 	"pow-shield-go/web/server"
 	"time"
@@ -20,8 +20,6 @@ import (
 	"github.com/go-playground/validator"
 	"github.com/google/uuid"
 )
-
-// --- PoW ---
 
 const csrfCookieName = "csrf_token"
 const csrfHeaderName = "X-CSRF-Token"
@@ -42,7 +40,6 @@ type controller struct {
 	defaultIPTolleranceDuration time.Duration
 }
 
-// New controller
 func New(generator pow.Generator, verifier pow.Verifier) controllers.Controller {
 	return &controller{
 		s:                           nil,
@@ -60,7 +57,6 @@ func (c *controller) sessionIDFromRequest(r *http.Request) string {
 	if !ok {
 		return uuid.New().String()
 	}
-
 	return strID
 }
 
@@ -99,7 +95,7 @@ func (c *controller) storeTempChallenge(w http.ResponseWriter, r *http.Request, 
 		return c.cache.Put(c.tempSessionCacheKey(temp.SessionID, ""), string(payload), c.defaultIPTolleranceDuration)
 	}
 
-	return handler.SetTempSessionValue(w, r, temp.SessionID, string(payload), int(maxAge))
+	return powHandler.SetTempSessionValue(w, r, temp.SessionID, string(payload), int(maxAge))
 }
 
 func (c *controller) loadTempChallenge(r *http.Request, sessionID string) (*tempChallengeSession, error) {
@@ -124,7 +120,7 @@ func (c *controller) loadTempChallenge(r *http.Request, sessionID string) (*temp
 		return &temp, nil
 	}
 
-	raw, ok := handler.GetTempSessionValue(r, sessionID)
+	raw, ok := powHandler.GetTempSessionValue(r, sessionID)
 	if !ok {
 		return nil, nil
 	}
@@ -147,7 +143,7 @@ func (c *controller) burnTempChallenge(w http.ResponseWriter, r *http.Request, t
 		return
 	}
 
-	handler.CleanTempSessions(w, r)
+	powHandler.CleanTempSessions(w, r)
 }
 
 func (c *controller) cleanCSRFCookie(w http.ResponseWriter) {
@@ -165,11 +161,11 @@ func (c *controller) cleanCSRFCookie(w http.ResponseWriter) {
 func (c *controller) getSession(r *http.Request, reusePunishment int) *domain.Session {
 	var session *domain.Session
 	if config.Get().Pow.UseSession {
-		session = handler.GetSession(r)
+		session = powHandler.GetSession(r)
 	}
 
 	if config.Get().Pow.UseHeader {
-		wrappedSession := handler.PowHeader(r)
+		wrappedSession := powHandler.PowHeader(r)
 		if wrappedSession != "" {
 			s := domain.Session{}
 			err := s.Unrap(wrappedSession)
@@ -200,21 +196,25 @@ func (c *controller) getSession(r *http.Request, reusePunishment int) *domain.Se
 	return session
 }
 
-// challenge - get PoW challenge
 func (c *controller) challenge(w http.ResponseWriter, r *http.Request) {
 	session := c.getSession(r, 1)
+	log := logging.Get()
 
 	challenge, err := c.generator.Problem(r.Context(), session)
 	if err != nil {
-		log.Println("[!][ERROR][challenge] Generating prefix", err.Error())
-		handler.RespondDefaultError(w, http.StatusInternalServerError)
+		if log != nil {
+			log.Error("Error generating PoW challenge", "error", err.Error())
+		}
+		powHandler.RespondDefaultError(w, http.StatusInternalServerError)
 		return
 	}
 
 	csrfToken, err := c.generateCSRFToken()
 	if err != nil {
-		log.Println("[!][ERROR][challenge] Generating CSRF token", err.Error())
-		handler.RespondDefaultError(w, http.StatusInternalServerError)
+		if log != nil {
+			log.Error("Error generating CSRF token", "error", err.Error())
+		}
+		powHandler.RespondDefaultError(w, http.StatusInternalServerError)
 		return
 	}
 
@@ -224,13 +224,15 @@ func (c *controller) challenge(w http.ResponseWriter, r *http.Request) {
 		CSRFToken: csrfToken,
 	})
 	if err != nil {
-		log.Println("[!][ERROR][challenge] Persisting temporary challenge", err.Error())
-		handler.RespondDefaultError(w, http.StatusInternalServerError)
+		if log != nil {
+			log.Error("Error persisting temporary challenge", "error", err.Error())
+		}
+		powHandler.RespondDefaultError(w, http.StatusInternalServerError)
 		return
 	}
 
 	if config.Get().Pow.UseSession {
-		handler.SetSession(w, r, session)
+		powHandler.SetSession(w, r, session)
 	}
 
 	http.SetCookie(w, &http.Cookie{
@@ -243,21 +245,23 @@ func (c *controller) challenge(w http.ResponseWriter, r *http.Request) {
 	})
 
 	var payload problemResponsePayload
-
 	payload.FromDomain(*challenge)
 
 	w.Header().Set("Access-Control-Allow-Origin", "*")
-	handler.RespondJson(w, payload, http.StatusOK)
+	powHandler.RespondJson(w, payload, http.StatusOK)
 }
 
-// verify - verify PoW challenge
 func (c *controller) verify(w http.ResponseWriter, r *http.Request) {
+	log := logging.Get()
+
 	session := c.getSession(r, 0)
 
 	csrfCookie, err := r.Cookie(csrfCookieName)
 	if err != nil {
-		log.Println("[!][ERROR][verify] CSRF token cookie not found")
-		handler.RespondDefaultError(w, http.StatusForbidden)
+		if log != nil {
+			log.Error("CSRF token cookie not found", "session_id", session.ID)
+		}
+		powHandler.RespondDefaultError(w, http.StatusForbidden)
 		return
 	}
 
@@ -271,85 +275,105 @@ func (c *controller) verify(w http.ResponseWriter, r *http.Request) {
 
 	tempChallenge, err := c.loadTempChallenge(r, session.ID)
 	if err != nil {
-		log.Println("[!][ERROR][verify] Loading temporary challenge", err.Error())
-		handler.RespondDefaultError(w, http.StatusInternalServerError)
+		if log != nil {
+			log.Error("Error loading temporary challenge", "error", err.Error(), "session_id", session.ID)
+		}
+		powHandler.RespondDefaultError(w, http.StatusInternalServerError)
 		return
 	}
 	if tempChallenge == nil {
-		log.Println("[!][ERROR][verify] Temporary challenge not found")
-		handler.RespondDefaultError(w, http.StatusForbidden)
+		if log != nil {
+			log.Warn("Temporary challenge session expired", "session_id", session.ID)
+		}
+		powHandler.RespondDefaultError(w, http.StatusForbidden)
 		return
 	}
 	defer c.burnTempChallenge(w, r, tempChallenge)
 
 	if tempChallenge.SessionID != session.ID {
-		log.Println("[!][ERROR][verify] Temporary challenge session mismatch")
-		handler.RespondDefaultError(w, http.StatusForbidden)
+		if log != nil {
+			log.Warn("Session ID mismatch", "stored", tempChallenge.SessionID, "current", session.ID)
+		}
+		powHandler.RespondDefaultError(w, http.StatusForbidden)
 		return
 	}
 
 	if tempChallenge.CSRFToken != requestCsrf || tempChallenge.CSRFToken != csrfCookie.Value {
-		log.Println("[!][ERROR][verify] CSRF token mismatch")
-		handler.RespondDefaultError(w, http.StatusForbidden)
+		if log != nil {
+			log.Warn("CSRF token mismatch", "session_id", session.ID)
+		}
+		powHandler.RespondDefaultError(w, http.StatusForbidden)
 		return
 	}
 
 	b, err := io.ReadAll(r.Body)
 	if err != nil {
-		log.Println("[!][ERROR][verify] unrap body", err.Error())
-		handler.RespondDefaultError(w, http.StatusBadRequest)
+		if log != nil {
+			log.Error("Error reading request body", "error", err.Error())
+		}
+		powHandler.RespondDefaultError(w, http.StatusBadRequest)
 		return
 	}
 	var payload verifyChallengePayload
 
 	err = json.Unmarshal(b, &payload)
 	if err != nil {
-		log.Println("[!][ERROR][verify] unmarshal body", err.Error())
-		handler.RespondDefaultError(w, http.StatusBadRequest)
+		if log != nil {
+			log.Error("Error unmarshaling challenge payload", "error", err.Error())
+		}
+		powHandler.RespondDefaultError(w, http.StatusBadRequest)
 		return
 	}
 
 	err = validator.New().Struct(payload)
 	if err != nil {
-		log.Println("[!][ERROR][verify] validating body", err.Error())
-		handler.RespondDefaultError(w, http.StatusBadRequest)
+		if log != nil {
+			log.Error("Validation failed for challenge payload", "error", err.Error(), "fields", payload)
+		}
+		powHandler.RespondDefaultError(w, http.StatusBadRequest)
 		return
 	}
 
 	data, err := hex.DecodeString(payload.Buffer)
 	if err != nil {
-		log.Println("[!][ERROR][verify] decoding hex", err.Error())
-		handler.RespondDefaultError(w, http.StatusBadRequest)
+		if log != nil {
+			log.Error("Error decoding hex buffer", "error", err.Error(), "buffer", payload.Buffer)
+		}
+		powHandler.RespondDefaultError(w, http.StatusBadRequest)
 		return
 	}
 
 	if payload.Prefix != tempChallenge.Prefix {
-		log.Println("[!][ERROR][verify] Prefix mismatch with temporary challenge")
-		handler.RespondDefaultError(w, http.StatusForbidden)
+		if log != nil {
+			log.Warn("Prefix mismatch", "provided", payload.Prefix, "expected", tempChallenge.Prefix)
+		}
+		powHandler.RespondDefaultError(w, http.StatusForbidden)
 		return
 	}
 
 	success, err := c.verifier.Verify(r.Context(), session, data, payload.Difficulty, payload.Prefix)
 	if err != nil {
-		log.Println("[!][ERROR][verify] INVALID NONCE:", err.Error())
-		handler.RespondDefaultError(w, http.StatusNotAcceptable)
+		if log != nil {
+			log.Error("INVALID NONCE", "session_id", session.ID, "error", err.Error(), "difficulty", payload.Difficulty)
+		}
+		powHandler.RespondDefaultError(w, http.StatusNotAcceptable)
 		return
 	}
 
 	session.RegisterNewChallenge(success, payload.Prefix, payload.Buffer)
 
 	if config.Get().Pow.UseCookie {
-		handler.SetCookie(w, session.ToCookie())
+		powHandler.SetCookie(w, session.ToCookie())
 	}
 	if config.Get().Pow.UseSession {
-		handler.SetSession(w, r, session)
+		powHandler.SetSession(w, r, session)
 	}
 	c.cleanCSRFCookie(w)
 
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 	w.Header().Set("Access-Control-Allow-Credentials", "true")
 
-	handler.RespondJson(w, map[string]string{
+	powHandler.RespondJson(w, map[string]string{
 		"token": session.PublicWrap(),
 	}, http.StatusOK)
 }

@@ -2,9 +2,10 @@ package cache
 
 import (
 	"context"
-	"log"
 	"sync"
 	"time"
+
+	"pow-shield-go/internal/logging"
 )
 
 var mcache *memCache
@@ -24,7 +25,10 @@ func GetMemory() Cache {
 
 func initializeMemory(ctx context.Context, tick time.Duration) Cache {
 	if mcache == nil {
-		log.Println("[CACHE] using local cache", "Memory")
+		log := logging.Get()
+		if log != nil {
+			log.Debug("Using local cache", "backend", "Memory")
+		}
 		mcache = &memCache{
 			buff:               map[string]*stored{},
 			garbageInitialized: make(chan bool, 1),
@@ -105,18 +109,25 @@ func (c *memCache) startGarbageCollector(tick time.Duration) {
 	c.garbageStop = make(chan bool)
 
 	go func() {
-		log.Println("[LOCAL_CACHE][GARBAGE COLLECTOR] - START - Garbage tick seconds:", tick.Seconds())
+		log := logging.Get()
+		if log != nil {
+			log.Debug("Garbage collector started", "tick_seconds", tick.Seconds())
+		}
 		c.garbageInitialized <- true
 		for {
 			select {
 			case <-c.garbageStop:
 				ticker.Stop()
-				log.Println("[LOCAL_CACHE][GARBAGE COLLECTOR] - STOP")
+				if log != nil {
+					log.Debug("Garbage collector stopped")
+				}
 				return
 			case <-ticker.C:
 				c.GarbageCollector()
 			case <-c.ctx.Done():
-				log.Println("[LOCAL_CACHE][Context done] Calling gracefulShutdown")
+				if log != nil {
+					log.Warn("Cache context done, calling gracefulShutdown")
+				}
 				c.GracefulShutdown()
 			}
 		}

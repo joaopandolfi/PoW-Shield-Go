@@ -3,8 +3,8 @@ package cache
 import (
 	"context"
 	"fmt"
-	"log"
 	"pow-shield-go/config"
+	"pow-shield-go/internal/logging"
 	"time"
 
 	"github.com/go-redis/redis/v8"
@@ -24,7 +24,10 @@ func GetRedis(ctx context.Context) Cache {
 
 func initializeRedis(ctx context.Context, server, password string, db int) Cache {
 	if rcache == nil {
-		log.Println("[CACHE] using redis cache")
+		log := logging.Get()
+		if log != nil {
+			log.Info("Using Redis cache", "server", server, "db", db)
+		}
 
 		rcache = &redisCache{
 			ctx: ctx,
@@ -74,9 +77,12 @@ func (c *redisCache) GracefulShutdown() {
 }
 
 func (c *redisCache) ctxHandlerCloser() {
+	log := logging.Get()
 	for {
 		<-c.ctx.Done()
-		log.Println("[REDIS_CACHE][Context done] Calling gracefulShutdown")
+		if log != nil {
+			log.Warn("Redis cache context done, shutting down")
+		}
 		c.GracefulShutdown()
 		return
 	}

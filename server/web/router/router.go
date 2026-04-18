@@ -3,6 +3,7 @@ package router
 import (
 	"pow-shield-go/config"
 	powServices "pow-shield-go/services/pow"
+	"pow-shield-go/web/controllers/admin"
 	"pow-shield-go/web/controllers/health"
 	"pow-shield-go/web/controllers/metrics"
 	"pow-shield-go/web/controllers/pow"
@@ -38,6 +39,10 @@ func (r *Router) Setup() {
 	health.New().SetupRouter(r.s)
 	metrics.New().SetupRouter(r.s)
 	proxy.New().SetupRouter(r.s)
+
+	if config.Get().Admin.Active {
+		admin.New().SetupRouter(r.s)
+	}
 }
 
 // CreateSubRouter with path

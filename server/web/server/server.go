@@ -2,10 +2,12 @@ package server
 
 import (
 	"context"
-	"log"
+	"fmt"
 	"net/http"
+	"os"
 
 	"pow-shield-go/config"
+	"pow-shield-go/internal/logging"
 
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
@@ -20,8 +22,10 @@ type Server struct {
 
 // New server
 func New(r *mux.Router, conf config.Config) *Server {
-	// Bind to a port and pass our router in
-	log.Printf("Server listenning on %s", conf.Port)
+	log := logging.Get()
+	if log != nil {
+		log.Info("Server starting", "port", conf.Port)
+	}
 	srv := &http.Server{
 		Handler:      handlers.CompressHandler(r),
 		Addr:         conf.Port,
@@ -47,7 +51,12 @@ func (s *Server) Start() {
 		err = s.srv.ListenAndServeTLS(cfg.TLSCert, cfg.TLSKey)
 	}
 	if err != nil && err != http.ErrServerClosed {
-		log.Fatalf("Fatal server error %s", err.Error())
+		log := logging.Get()
+		if log != nil {
+			log.Error("Fatal server error", "error", err.Error())
+		} else {
+			fmt.Fprintf(os.Stderr, "FATAL: Server error: %v\n", err)
+		}
 	}
 }
 

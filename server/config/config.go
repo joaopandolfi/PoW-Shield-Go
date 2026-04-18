@@ -4,7 +4,6 @@ import (
 	"crypto/rand"
 	"fmt"
 	"io"
-	"log"
 	"os"
 	"path/filepath"
 	"time"
@@ -25,6 +24,8 @@ type Config struct {
 	Cors         cors
 	Cache        cache
 	Metrics      metrics
+	Admin        admin
+	Logging      logging
 
 	ProtectedServer protectedServer
 
@@ -34,6 +35,18 @@ type Config struct {
 	Session session
 	Static  static
 	Waf     waf
+}
+
+type logging struct {
+	Level       string
+	FilePath    string
+	Stacktrace  bool
+	Environment string
+}
+
+type admin struct {
+	Active bool
+	Path   string
 }
 
 type waf struct {
@@ -133,12 +146,12 @@ func sessionPass() string {
 
 	buff := make([]byte, 32)
 	if _, err := rand.Read(buff); err != nil {
-		log.Println("[!][Config] failed to generate random SESSION_PASS, using development fallback")
+		fmt.Fprintf(os.Stderr, "[!][Config] failed to generate random SESSION_PASS, using development fallback\n")
 		return "12345670101112ABC"
 	}
 
 	pass := fmt.Sprintf("%x", buff)
-	log.Println("[!][Config] SESSION_PASS not set, generated ephemeral random key")
+	fmt.Fprintf(os.Stderr, "[!][Config] SESSION_PASS not set, generated ephemeral random key\n")
 	return pass
 }
 
@@ -232,6 +245,16 @@ func Load() error {
 				Password: getEnvOrDefault("REDIS_PASS", ""),
 			},
 		},
+		Admin: admin{
+			Active: StrTo[bool](getEnvOrDefault("ADMIN_ACTIVE", "false")),
+			Path:   getEnvOrDefault("ADMIN_PATH", "/admin"),
+		},
+		Logging: logging{
+			Level:       getEnvOrDefault("LOG_LEVEL", "INFO"),
+			FilePath:    getEnvOrDefault("LOG_FILE_PATH", ""),
+			Stacktrace:  StrTo[bool](getEnvOrDefault("LOG_STACKTRACE", "false")),
+			Environment: getEnvOrDefault("LOG_ENVIRONMENT", "development"),
+		},
 	}
 
 	cfg.Session.Store.Options = cfg.Session.Options
@@ -248,14 +271,14 @@ func loadWafRules(fileName string) string {
 	rules := "[]"
 	file, err := os.Open(fileName)
 	if err != nil {
-		log.Println("[!][Config] Loading waf rule file: ", err.Error())
+		fmt.Fprintf(os.Stderr, "[!][Config] Loading waf rule file: %s\n", err.Error())
 		return rules
 	}
 	defer file.Close()
 
 	b, err := io.ReadAll(file)
 	if err != nil {
-		log.Println("[!][Config] Rading waf rule file: ", err.Error())
+		fmt.Fprintf(os.Stderr, "[!][Config] Reading waf rule file: %s\n", err.Error())
 		return rules
 	}
 	return string(b)

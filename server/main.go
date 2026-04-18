@@ -3,11 +3,11 @@ package main
 import (
 	"context"
 	"fmt"
-	"log"
 	"os"
 	"os/signal"
 	"pow-shield-go/config"
 	"pow-shield-go/internal/cache"
+	lp "pow-shield-go/internal/logging"
 	"pow-shield-go/web/router"
 	"pow-shield-go/web/server"
 	"syscall"
@@ -22,6 +22,31 @@ func configInit(ctx context.Context) error {
 		return fmt.Errorf("loading envs: %w", err)
 	}
 
+	logging := config.Get().Logging
+	var lvl lp.Level
+	switch logging.Level {
+	case "DEBUG":
+		lvl = lp.LevelDebug
+	case "WARN":
+		lvl = lp.LevelWarn
+	case "ERROR":
+		lvl = lp.LevelError
+	default:
+		lvl = lp.LevelInfo
+	}
+
+	lp.Init(lp.Options{
+		Level:       lvl,
+		FilePath:    logging.FilePath,
+		Stacktrace:  logging.Stacktrace,
+		Component:   "PoWShield",
+		Environment: logging.Environment,
+	})
+	log := lp.Get()
+	if log != nil {
+		log.Info("Logging initialized", "level", logging.Level, "env", logging.Environment)
+	}
+
 	tickMemoryGarbageCollector := time.Second * 45
 	cache.Initialize(ctx, tickMemoryGarbageCollector)
 	return nil
@@ -29,6 +54,10 @@ func configInit(ctx context.Context) error {
 
 func gracefulShutdown() {
 	fmt.Println("<====================================Shutdown==================================>")
+	log := lp.Get()
+	if log != nil {
+		log.Info("Graceful shutdown initiated")
+	}
 	c := cache.Get()
 	if c != nil {
 		c.GracefulShutdown()
@@ -50,15 +79,18 @@ O=======================================(The winter is comming)====>
 }
 
 func main() {
-	welcome()
-	//Init
 	ctx := context.Background()
 	err := configInit(ctx)
 	if err != nil {
-		log.Fatal("[!] Loading configs: ", err.Error())
+		log := lp.Get()
+		if log != nil {
+			log.Error("Failed to initialize", "error", err.Error())
+		} else {
+			fmt.Fprintf(os.Stderr, "ERROR: %v\n", err)
+		}
+		os.Exit(1)
 	}
 
-	// Initialize Mux Router
 	r := mux.NewRouter()
 	r.Use(mux.CORSMethodMiddleware(r))
 
@@ -72,14 +104,22 @@ func main() {
 	go srv.Start()
 
 	<-done
-	log.Println("[SERVER] Gracefully shutdown start")
 	gracefulShutdown()
 
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	if err := srv.Shutdown(ctx); err != nil {
-		log.Fatalf("Server Shutdown Failed %s", err.Error())
+		log := lp.Get()
+		if log != nil {
+			log.Error("Server shutdown failed", "error", err.Error())
+		} else {
+			fmt.Fprintf(os.Stderr, "ERROR: Server shutdown failed: %v\n", err)
+		}
+		os.Exit(1)
 	}
-
 	cancel()
-	log.Println("[SERVER] Gracefully shutdown finish")
+
+	log := lp.Get()
+	if log != nil {
+		log.Info("Server shutdown complete")
+	}
 }

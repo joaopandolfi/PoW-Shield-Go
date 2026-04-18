@@ -4,9 +4,11 @@ import (
 	"bytes"
 	"compress/gzip"
 	"encoding/json"
-	"log"
+	"fmt"
 	"net/http"
+	"os"
 	"pow-shield-go/config"
+	"pow-shield-go/internal/logging"
 	"pow-shield-go/web"
 	"strings"
 )
@@ -38,7 +40,12 @@ func RespondJson(w http.ResponseWriter, resp interface{}, status int) {
 
 	b, err := marshaler(resp)
 	if err != nil {
-		log.Printf("RespondJson: marshaling response payload: %s\n", err)
+		log := logging.Get()
+		if log != nil {
+			log.Error("Marshaling response payload", "error", err.Error())
+		} else {
+			fmt.Fprintf(os.Stderr, "ERROR: Marshaling response: %v\n", err)
+		}
 		w.WriteHeader(http.StatusInternalServerError)
 		w.Write([]byte("error on marshal"))
 		return

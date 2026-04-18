@@ -4,9 +4,9 @@ import (
 	"bytes"
 	"encoding/json"
 	"io"
-	"log"
 	"net/http"
 	"pow-shield-go/config"
+	"pow-shield-go/internal/logging"
 	"pow-shield-go/internal/metrics"
 	"pow-shield-go/models/domain"
 	"regexp"
@@ -29,7 +29,10 @@ func InitWaf() {
 	}
 	err := json.Unmarshal([]byte(config.Get().Waf.RawWafs), &allWafs)
 	if err != nil {
-		log.Println("[!][Middleware][Waf] error on loading waf list: ", err.Error())
+		log := logging.Get()
+		if log != nil {
+			log.Error("Error loading WAF rules list", "error", err.Error())
+		}
 		allWafs = []domain.Waf{}
 		return
 	}
@@ -49,7 +52,10 @@ func InitWaf() {
 	for _, w := range allWafs {
 		regexp, err := regexp.Compile(w.Reg)
 		if err != nil {
-			log.Println("[!][Middleware][Waf] error on compiling regex", w.ID)
+			log := logging.Get()
+			if log != nil {
+				log.Warn("Error compiling WAF regex rule", "rule_id", w.ID, "error", err.Error())
+			}
 			continue
 		}
 		w.Regex = regexp
@@ -113,13 +119,18 @@ func Waf(next func(http.ResponseWriter, *http.Request)) http.HandlerFunc {
 			return
 		}
 
-		log.Println("[.][Middleware][WAF] ", r.URL.String())
+		log := logging.Get()
+		if log != nil {
+			log.Debug("WAF check", "url", r.URL.String(), "method", r.Method, "remote_ip", r.RemoteAddr)
+		}
 
 		url := r.URL.String()
 		detecteds := wafDetect(url, wafUrl)
 		if len(detecteds) > 0 {
 			metrics.IncWAFBlocked("url", detecteds[0].TypeName)
-			log.Println("[*][Middleware][Waf] URL WAF RULE TRIGGERED:", detecteds[0].ID, detecteds[0].TypeName, "on:", url)
+			if log != nil {
+				log.Warn("WAF URL rule triggered", "rule_id", detecteds[0].ID, "type", detecteds[0].TypeName, "url", url, "ip", r.RemoteAddr)
+			}
 			blockRequest(w)
 			return
 		}
@@ -129,7 +140,9 @@ func Waf(next func(http.ResponseWriter, *http.Request)) http.HandlerFunc {
 			detecteds = wafDetect(header, wafHeader)
 			if len(detecteds) > 0 {
 				metrics.IncWAFBlocked("header", detecteds[0].TypeName)
-				log.Println("[*][Middleware][Waf] HEADER RULE TRIGGERED:", detecteds[0].ID, detecteds[0].TypeName, "on:", url)
+				if log != nil {
+					log.Warn("WAF header rule triggered", "rule_id", detecteds[0].ID, "type", detecteds[0].TypeName, "header", header)
+				}
 				blockRequest(w)
 				return
 			}
@@ -137,7 +150,9 @@ func Waf(next func(http.ResponseWriter, *http.Request)) http.HandlerFunc {
 
 		body, err := io.ReadAll(r.Body)
 		if err != nil {
-			log.Println("[!][Middleware][Waf] READING BODY ERROR: ", err.Error())
+			if log != nil {
+				log.Error("Error reading request body", "error", err.Error(), "url", url)
+			}
 			blockRequest(w)
 			return
 		}
@@ -145,7 +160,9 @@ func Waf(next func(http.ResponseWriter, *http.Request)) http.HandlerFunc {
 		detecteds = wafDetect(string(body), wafBody)
 		if len(detecteds) > 0 {
 			metrics.IncWAFBlocked("body", detecteds[0].TypeName)
-			log.Println("[*][Middleware][Waf] BODY RULE TRIGGERED:", detecteds[0].ID, detecteds[0].TypeName, "on:", url)
+			if log != nil {
+				log.Warn("WAF body rule triggered", "rule_id", detecteds[0].ID, "type", detecteds[0].TypeName, "url", url)
+			}
 			blockRequest(w)
 			return
 		}
