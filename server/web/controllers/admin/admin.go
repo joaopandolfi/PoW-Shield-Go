@@ -2,9 +2,9 @@ package admin
 
 import (
 	"crypto/rand"
+	"embed"
 	"encoding/json"
 	"net/http"
-	"os"
 
 	"pow-shield-go/config"
 	lp "pow-shield-go/internal/logging"
@@ -13,6 +13,9 @@ import (
 	"pow-shield-go/web/handler"
 	"pow-shield-go/web/server"
 )
+
+//go:embed static/admin/*
+var adminFiles embed.FS
 
 type controller struct {
 	s *server.Server
@@ -81,7 +84,7 @@ func (c *controller) indexHandler(w http.ResponseWriter, r *http.Request) {
 func (c *controller) spaStaticHandler(w http.ResponseWriter, r *http.Request) {
 	path := r.URL.Path[len(config.Get().Admin.Path+"/static/"):]
 	filePath := "client/public" + path
-	if _, err := os.Stat(filePath); err != nil {
+	if _, err := http.Dir(filePath).Open("."); err != nil {
 		http.NotFound(w, r)
 		return
 	}
@@ -95,12 +98,16 @@ func (c *controller) spaFileHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	filePath := "client/public/admin/" + filename
-	if _, err := os.Stat(filePath); err != nil {
+	filePath := "admin/" + filename
+	data, err := adminFiles.ReadFile(filePath)
+	if err != nil {
 		http.NotFound(w, r)
 		return
 	}
-	http.ServeFile(w, r, filePath)
+
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.WriteHeader(http.StatusOK)
+	w.Write(data)
 }
 
 func (c *controller) loginHandler(w http.ResponseWriter, r *http.Request) {
@@ -108,7 +115,14 @@ func (c *controller) loginHandler(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, config.Get().Admin.Path+"/dashboard.html", http.StatusFound)
 		return
 	}
-	http.ServeFile(w, r, "client/public/admin/login.html")
+	data, err := adminFiles.ReadFile("admin/login.html")
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.WriteHeader(http.StatusOK)
+	w.Write(data)
 }
 
 func (c *controller) loginPostHandler(w http.ResponseWriter, r *http.Request) {
