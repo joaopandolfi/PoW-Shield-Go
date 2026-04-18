@@ -35,8 +35,8 @@ func NewVerifier() Verifier {
 func (s *verifier) Verify(ctx context.Context, session *domain.Session, nonce []byte, compelexity int, prefix string) (bool, error) {
 
 	success := false
+	key := CacheKey(session.ID, prefix)
 	defer func() {
-		key := session.ID
 		challenge := domain.NewChallenge()
 		previousChallenge, _ := s.cache.Get(key)
 

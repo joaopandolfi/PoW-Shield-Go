@@ -7,6 +7,7 @@ import (
 	"pow-shield-go/config"
 	"pow-shield-go/internal/cache"
 	"pow-shield-go/models/domain"
+	powServices "pow-shield-go/services/pow"
 	"pow-shield-go/web/handler"
 )
 
@@ -72,7 +73,7 @@ func PoW(next func(http.ResponseWriter, *http.Request)) http.HandlerFunc {
 			return
 		}
 
-		sessionStatus, _ := powCache.Get(session.ID)
+		sessionStatus, _ := powCache.Get(powServices.CacheKey(session.ID, session.Prefix))
 		if sessionStatus == nil {
 			blockReason = "cached session not found"
 			cleanAll(w, r)

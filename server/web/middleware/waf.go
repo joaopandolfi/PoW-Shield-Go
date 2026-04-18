@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"bytes"
 	"encoding/json"
 	"io"
 	"log"
@@ -89,7 +90,6 @@ func Waf(next func(http.ResponseWriter, *http.Request)) http.HandlerFunc {
 			}
 		}
 
-		// wafdetect for body
 		body, err := io.ReadAll(r.Body)
 		if err != nil {
 			log.Println("[!][Middleware][Waf] READING BODY ERROR: ", err.Error())
@@ -104,6 +104,7 @@ func Waf(next func(http.ResponseWriter, *http.Request)) http.HandlerFunc {
 			return
 		}
 
+		r.Body = io.NopCloser(bytes.NewReader(body))
 		next(w, r)
 	}
 }

@@ -50,7 +50,7 @@ func (c *redisCache) Put(key string, data interface{}, duration time.Duration) e
 }
 
 func (c *redisCache) Get(key string) (interface{}, error) {
-	val, err := c.client.Get(c.ctx, "key").Result()
+	val, err := c.client.Get(c.ctx, key).Result()
 	if err == redis.Nil {
 		return nil, nil // Key does not exists
 	} else if err != nil {

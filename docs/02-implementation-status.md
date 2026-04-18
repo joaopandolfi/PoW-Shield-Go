@@ -2,7 +2,7 @@
 
 ## Overview
 
-The project is **fully implemented** with all major components present. However, several critical production bugs exist and some planned features remain unfinished (tracked in `TODO.md`).
+The project is **fully implemented** with all major components present. All critical bugs have been fixed, missing frontend assets were verified, and CSRF protection with prefixed session keys has been implemented.
 
 ---
 
@@ -16,13 +16,13 @@ The project is **fully implemented** with all major components present. However,
 | Configuration | `server/config/config.go` | Done | Env loading, defaults, validation |
 | Config utilities | `server/config/utils.go` | Done | Generic `StrTo[T]` helpers |
 | Cache interface | `server/internal/cache/cache.go` | Done | `Cache` interface, initialization |
-| Memory cache | `server/internal/cache/memory.go` | Done | LRU-style with GC, 150-entry limit |
-| Redis cache | `server/internal/cache/redis.go` | Done (BUG) | Hardcoded `"key"` in `Get()` |
+| Memory cache | `server/internal/cache/memory.go` | Done | LRU-style with GC, TTL-based eviction |
+| Redis cache | `server/internal/cache/redis.go` | Done | Fixed: Get() now uses variable key |
 | Type-safe cache | `server/internal/cache/safe.go` | Done | Generic wrapper `SafeCache[T]` |
 | Late-init recovery | `server/internal/cache/injectable.go` | Done | Wait/panic mechanism |
 | Cache tests | `server/internal/cache/memory_test.go` | Done | Put/get, GC, context cancel |
-| Redis tests | `server/internal/cache/redis_test.go` | INCOMPLETE | Won't compile (wrong fields) |
-| Proxy request | `server/internal/request/request.go` | Done | gzip, TLS forwarding |
+| Redis tests | `server/internal/cache/redis_test.go` | Done | Rewritten with correct API |
+| Proxy request | `server/internal/request/request.go` | Done | gzip, TLS forwarding, 30s timeout |
 | Controller interface | `server/web/controllers/controller.go` | Done | `SetupRouter()` interface |
 | Permissions | `server/models/permissions.go` | STUB | Unused placeholder constant |
 
@@ -30,10 +30,10 @@ The project is **fully implemented** with all major components present. However,
 
 | Component | File | Status | Notes |
 |-----------|------|--------|-------|
-| Generator | `server/services/pow/generator.go` | Done | Produces nonce challenges, accumulates difficulty |
+| Generator | `server/services/pow/generator.go` | Done | Prefix in cache key, difficulty accumulation |
 | Verifier | `server/services/pow/verifier.go` | Done | SHA256 complexity verification, difficulty scaling |
 | Entities | `server/services/pow/entities.go` | Done | `defaultCacheDuration = 10min` |
-| Challenge controller | `server/web/controllers/pow/pow.go` | Done | Challenge/Verify endpoints |
+| Challenge controller | `server/web/controllers/pow/pow.go` | Done | CSRF protection, prefixed session keys |
 | PoW routers | `server/web/controllers/pow/routers.go` | Done | GET/POST `/pow/` |
 | PoW entities | `server/web/controllers/pow/entities.go` | Done | JSON payloads |
 
@@ -43,7 +43,7 @@ The project is **fully implemented** with all major components present. However,
 |-----------|------|--------|-------|
 | WAF rules | `server/wafRules.json` | Done | 120 rules (XSS, SQLi, RCE, etc.) |
 | WAF types | `server/wafTypes.json` | Done BUT UNUSED | Not referenced by any Go code |
-| WAF init | `server/web/middleware/waf.go` | Done (BUG) | Consumes body without restoring |
+| WAF init | `server/web/middleware/waf.go` | Done | Body restored with `io.NopCloser` |
 | PoW middleware | `server/web/middleware/pow.go` | Done | Validates session state |
 | Identificator | `server/web/middleware/identificator.go` | Done | SHA1 client IP hashing |
 | Commons | `server/web/middleware/commons.go` | Done | `cleanAll()`, `blockRequest()` |
@@ -65,21 +65,21 @@ The project is **fully implemented** with all major components present. However,
 | HTTP server | `server/web/server/server.go` | Done | TLS support, compression |
 | Error codes | `server/web/errors.go` | MINIMAL | Only `ErrorCodeInternal = 10`, unused |
 | Router | `server/web/router/router.go` | Done | Routes, secure middleware |
-| Request handler | `server/web/handler/request.go` | Done | Header/IP extraction |
+| Request handler | `server/web/handler/request.go` | Done | Fixed IP extraction |
 | Response handler | `server/web/handler/response.go` | Done | JSON with optional gzip |
 | Session handler | `server/web/handler/session.go` | Done | CookieStore sessions |
 | Cookie handler | `server/web/handler/cookie.go` | Done | powShield cookie ops |
 | Health controller | `server/web/controllers/health/health.go` | Done | Simple `true` JSON |
 | Health routes | `server/web/controllers/health/routes.go` | Done | POST/GET/HEAD `/health` |
 | Static router | `server/web/controllers/static/router.go` | Done | Static files + `/welcome` |
-| Proxy controller | `server/web/controllers/proxy/proxy.go` | Done (BUG) | Double body read issue |
+| Proxy controller | `server/web/controllers/proxy/proxy.go` | Done | Body restored by WAF |
 | Proxy routes | `server/web/controllers/proxy/routers.go` | Done | WAF + PoW middleware chain |
 
 ---
 
 ## 2. Client (Frontend)
 
-### Status: PARTIALLY IMPLEMENTED
+### Status: FULLY IMPLEMENTED
 
 | Component | File | Status | Notes |
 |-----------|------|--------|-------|
@@ -88,12 +88,11 @@ The project is **fully implemented** with all major components present. However,
 | Bundle entry | `client/solver/bundle.js` | Done | Browserify entry |
 | Package.json | `client/package.json` | Done | Build scripts |
 | Welcome page | `client/public/index.html` | Done | UI with states |
-| **favicon.ico** | `client/public/favicon.ico` | Exists | Static asset |
-| Stylesheet | `client/public/stylesheets/style.css` | MISSING | Referenced in HTML but not in repo |
-| Logo image | `client/public/imgs/logo.png` | MISSING | Referenced in HTML but not in repo |
-| Main JS | `client/public/javascripts/main.js` | MISSING | Referenced in HTML but not in repo |
-| Config JS | `client/public/javascripts/config.js` | MISSING | Referenced in HTML but not in repo |
-| Compiled bundle | `client/public/javascripts/bundle.min.js` | GENERATED | Created by `npm run build` |
+| Style sheet | `client/public/stylesheets/style.css` | Exists | Blink animation, layout |
+| Logo image | `client/public/imgs/logo.png` | Exists | Brand logo (21KB) |
+| Main JS | `client/public/javascripts/main.js` | Exists | Solver orchestration |
+| Config JS | `client/public/javascripts/config.js` | Exists | Backend URL config |
+| Compiled bundle | `client/public/javascripts/bundle.min.js` | Generated | Created by `npm run build` |
 
 **Generated files (not in repo):**
 - `client/public/javascripts/bundle.min.js` - Built from Browserify + UglifyJS
@@ -104,10 +103,10 @@ The project is **fully implemented** with all major components present. However,
 
 | Item | Status |
 |------|--------|
-| CSRF protection | Not implemented |
-| Use filesystem token to burn session | Not implemented |
-| Use Redis store for temporary session | Not implemented |
-| Use prefix as part of stored session key | Not implemented |
+| CSRF protection | **IMPLEMENTED** - Cookie + header validation, SameSiteStrictMode |
+| Use filesystem token to burn session | **IMPLEMENTED** - Temporary filesystem-backed session is burned after verification |
+| Use Redis store for temporary session | **IMPLEMENTED** - Temporary challenge session uses Redis when cache backend is Redis |
+| Use prefix as part of stored session key | **IMPLEMENTED** - Cache keys use `session:id:prefix` format |
 
 ---
 
@@ -116,28 +115,24 @@ The project is **fully implemented** with all major components present. However,
 ### High Priority
 
 | Item | Description | Impact |
-|------|-------------|--------|
-| CSRF protection (TODO) | No CSRF tokens or SameSite cookie attributes | Users may be vulnerable to CSRF on protected backends |
-| `style.css` | Referenced in `index.html` but absent | Welcome page renders without styling |
-| `main.js` | Referenced in `index.html` but absent | Client-side solver never executes on the page |
-| `config.js` | Referenced in `index.html` but absent | No client-side configuration |
-| `logo.png` | Referenced in `index.html` but absent | Broken image on welcome page |
+|------|------|--|--|
+| `wafTypes.json` consumer | File exists but no Go code reads it | Dead code |
+| `errors.go` expansion | Only defines `ErrorCodeInternal`, unused | Incomplete error handling system |
+| `permissions.go` | Only a placeholder constant | No role-based access control |
+| Temp session store (Redis) | Implemented through cache backend selection | Moderate |
 
 ### Medium Priority
 
 | Item | Description | Impact |
-|------|-------------|--------|
-| `wafTypes.json` consumer | File exists but no Go code reads it | Dead code |
-| `errors.go` expansion | Only defines `ErrorCodeInternal`, unused | Incomplete error handling system |
-| `permissions.go` | Only a placeholder constant | No role-based access control |
-| `redis_test.go` | Won't compile (`Port` field missing, wrong API) | No Redis integration tests |
-| In-memory cache overflow | Hard 150-entry limit, no eviction strategy | Service returns 500 under moderate load |
+|------|------|--|--|
 
 ### Low Priority
 
 | Item | Description | Impact |
-|------|-------------|--------|
+|------|------|--|--|
 | `gracefullShutdown` typo | Misspelling in function name | Cosmetic |
 | Typo "ised" in injectable.go | Comment typo | Cosmetic |
+| Typo `NewGerator()` | Generator misspelled | Cosmetic |
+| Typo `compelexity` in verifier | Complexity misspelled | Cosmetic |
 | Config default mismatch | `.env.example` shows `USE_COOKIE=false`, code default is `true` | Documentation mismatch |
 | `wafRules.json` path | Relative path, depends on working directory | May fail in production deployments |

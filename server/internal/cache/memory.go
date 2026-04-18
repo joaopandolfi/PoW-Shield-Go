@@ -5,8 +5,6 @@ import (
 	"log"
 	"sync"
 	"time"
-
-	"fmt"
 )
 
 var mcache *memCache
@@ -41,12 +39,25 @@ func initializeMemory(ctx context.Context, tick time.Duration) Cache {
 }
 
 func (c *memCache) Put(key string, data interface{}, duration time.Duration) error {
-	if len(c.buff) > MAX_BUFF_SIZE {
-		return fmt.Errorf("buffer overflow")
-	}
-
 	c.mu.Lock()
 	defer c.mu.Unlock()
+
+	for len(c.buff) > MAX_BUFF_SIZE {
+		oldestKey := ""
+		oldestTime := time.Now()
+		for k, v := range c.buff {
+			if v.validAt.Before(oldestTime) {
+				oldestKey = k
+				oldestTime = v.validAt
+			}
+		}
+		if oldestKey != "" {
+			delete(c.buff, oldestKey)
+		} else {
+			break
+		}
+	}
+
 	c.buff[key] = &stored{
 		value:   data,
 		validAt: time.Now().Add(duration),

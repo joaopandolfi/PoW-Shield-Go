@@ -3,16 +3,15 @@
 ## Outstanding Work Items (from `TODO.md`)
 
 ### CSRF Protection
-- [ ] Implement CSRF token generation and validation
-  - Use filesystem token to burn session
-  - Use Redis store for temporary session
-- [ ] Add `SameSite=Strict` to cookie configuration (currently `Lax`)
-- [ ] Consider `AntiforgeryToken` header for AJAX requests
+- [x] Implement CSRF token generation and validation
+- [x] Use filesystem token to burn session when Redis is disabled
+- [x] Use Redis store for temporary session when Redis is enabled
+- [x] Add `SameSite=Strict` to the CSRF cookie configuration
+- [x] Accept `X-CSRF-Token` header for AJAX requests
 
 ### Session Key Prefix
-- [ ] Use PoW prefix as part of stored session key in cache
-  - Current: `session:<sha1_hash>`
-  - Proposed: `session:<sha1_hash>:<nonce_prefix>`
+- [x] Use PoW prefix as part of stored session key in cache
+  - Current: `session:<sha1_hash>:<nonce_prefix>`
   - Benefit: Allows cache key rotation on prefix change
 
 ---

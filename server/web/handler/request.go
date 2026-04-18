@@ -1,7 +1,6 @@
 package handler
 
 import (
-	"fmt"
 	"net"
 	"net/http"
 	"strings"
@@ -25,9 +24,15 @@ func IP(r *http.Request) string {
 	ip := r.RemoteAddr
 	parsedIP := net.ParseIP(r.RemoteAddr)
 	if parsedIP != nil {
-		ip = string(parsedIP)
+		ip = parsedIP.String()
 	}
 	splitedIP := strings.Split(ip, ":")
-	ip = strings.Join(splitedIP[:len(splitedIP)-1], ":")
-	return fmt.Sprintf("%s %s", ip, r.Header.Get("X-Real-Ip"))
+	if len(splitedIP) > 1 {
+		ip = strings.Join(splitedIP[:len(splitedIP)-1], ":")
+	}
+	realIP := r.Header.Get("X-Real-Ip")
+	if realIP != "" {
+		return realIP
+	}
+	return ip
 }

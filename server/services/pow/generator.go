@@ -44,7 +44,8 @@ func (s *generator) Problem(ctx context.Context, requester *domain.Session) (*do
 		Requester: requester.ID,
 	}
 
-	previousChallenge, err := s.cache.Get(requester.ID)
+	previousKey := CacheKey(requester.ID, requester.Prefix)
+	previousChallenge, err := s.cache.Get(previousKey)
 	if err != nil {
 		return nil, fmt.Errorf("getting previuos challenge: %w", err)
 	}
@@ -64,7 +65,8 @@ func (s *generator) Problem(ctx context.Context, requester *domain.Session) (*do
 	challenge.Difficulty = difficulty
 	challenge.ParseState(s.punishment)
 
-	err = s.cache.Put(challenge.Key(), challenge.Status, defaultCacheDuration)
+	cacheKey := CacheKey(challenge.Key(), prefix)
+	err = s.cache.Put(cacheKey, challenge.Status, defaultCacheDuration)
 	if err != nil {
 		return nil, fmt.Errorf("error on saving problem on cache: %w", err)
 	}

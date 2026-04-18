@@ -12,7 +12,7 @@ import (
 )
 
 var transport *http.Transport
-var defaultTimeout time.Duration = time.Minute * 10
+var defaultTimeout time.Duration = time.Second * 30
 
 func getTransport() *http.Transport {
 	if transport == nil {

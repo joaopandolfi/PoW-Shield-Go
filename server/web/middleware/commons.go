@@ -8,6 +8,7 @@ import (
 func cleanAll(w http.ResponseWriter, r *http.Request) {
 	handler.CleanCookies(w)
 	handler.CleanSessions(w, r)
+	handler.CleanTempSessions(w, r)
 }
 
 func blockRequest(w http.ResponseWriter) {

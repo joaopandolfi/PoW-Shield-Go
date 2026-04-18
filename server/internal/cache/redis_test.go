@@ -3,25 +3,47 @@
 package cache
 
 import (
+	"context"
 	"pow-shield-go/config"
 	"testing"
 	"time"
 )
 
-func Test_redis(t *testing.T) {
+func TestRedisCache(t *testing.T) {
 	cfg := config.Config{}
 	cfg.Cache.Redis.Use = true
-	cfg.Cache.Redis.Server = "locahost"
-	cfg.Cache.Redis.Port = "333"
-	cfg.Cache.Redis.Password = "local"
-	cfg.Cache.Redis.DB = 1
+	cfg.Cache.Redis.Server = "localhost:6379"
+	cfg.Cache.Redis.DB = 15
 
-	config.Inject(cfg)
-	GetRedis().Put("teste", 1234, time.Minute*2)
-	val, err := GetRedis().Get("teste")
+	ctx := context.Background()
+	c := initializeRedis(ctx, cfg.Cache.Redis.Server, cfg.Cache.Redis.Password, cfg.Cache.Redis.DB)
+
+	err := c.Put("test-key", "test-value", time.Second*5)
 	if err != nil {
-		t.Errorf("get redis error: %v", err)
-		return
+		t.Fatalf("failed to put: %v", err)
 	}
-	t.Log(val)
+
+	val, err := c.Get("test-key")
+	if err != nil {
+		t.Fatalf("failed to get: %v", err)
+	}
+	if val == nil {
+		t.Fatalf("expected value, got nil")
+	}
+
+	if val.(string) != "test-value" {
+		t.Fatalf("expected test-value, got %v", val)
+	}
+
+	err = c.Delete("test-key")
+	if err != nil {
+		t.Fatalf("failed to delete: %v", err)
+	}
+
+	val, _ = c.Get("test-key")
+	if val != nil {
+		t.Fatalf("expected nil after delete, got %v", val)
+	}
+
+	c.GracefullShutdown()
 }

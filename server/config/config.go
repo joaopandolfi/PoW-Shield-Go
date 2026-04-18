@@ -5,6 +5,7 @@ import (
 	"io"
 	"log"
 	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/gorilla/sessions"
@@ -121,6 +122,10 @@ func Load() error {
 		Session: session{
 			Name:  getEnvOrDefault("SESSION_NAME", "PoW-Session"),
 			Store: sessions.NewCookieStore([]byte(getEnvOrDefault("SESSION_PASS", "12345670101112ABC"))),
+			Fstore: sessions.NewFilesystemStore(
+				filepath.Join(os.TempDir(), "pow-shield-go-sessions"),
+				[]byte(getEnvOrDefault("SESSION_PASS", "12345670101112ABC")),
+			),
 			Options: &sessions.Options{
 				Path:     getEnvOrDefault("SESSION_PATH", "/"),
 				MaxAge:   StrTo[int](getEnvOrDefault("SESSION_MAX_AGE", "7200")), //3600 * 2, //86400 * 7,
@@ -164,6 +169,9 @@ func Load() error {
 			},
 		},
 	}
+
+	cfg.Session.Store.Options = cfg.Session.Options
+	cfg.Session.Fstore.MaxLength(0)
 
 	if !cfg.Pow.UseCookie && !cfg.Pow.UseSession && !cfg.Pow.UseHeader && cfg.Pow.Active {
 		return fmt.Errorf("to use PoW protection you need to setup USE_COOKIE,USE_SESSION or USE_HEADER (both can be true)")
