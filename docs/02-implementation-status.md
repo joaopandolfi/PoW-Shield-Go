@@ -74,6 +74,7 @@ The project is **fully implemented** with all major components present. All crit
 | Static router | `server/web/controllers/static/router.go` | Done | Static files + `/welcome` |
 | Proxy controller | `server/web/controllers/proxy/proxy.go` | Done | Body restored by WAF |
 | Proxy routes | `server/web/controllers/proxy/routers.go` | Done | WAF + PoW middleware chain |
+| Admin controller | `server/web/controllers/admin/admin.go` | Done | SPA serving, login/stats API, auth check |
 
 ---
 
@@ -93,6 +94,9 @@ The project is **fully implemented** with all major components present. All crit
 | Main JS | `client/public/javascripts/main.js` | Exists | Solver orchestration |
 | Config JS | `client/public/javascripts/config.js` | Exists | Backend URL config |
 | Compiled bundle | `client/public/javascripts/bundle.min.js` | Generated | Created by `npm run build` |
+| Admin login | `client/public/admin/login.html` | Done | SPA login with relative API paths |
+| Admin dashboard | `client/public/admin/dashboard.html` | Done | SPA dashboard with relative API paths, fixed template literals |
+| Admin index | `client/public/admin/index.html` | Done | Alternative admin dashboard page |
 
 **Generated files (not in repo):**
 - `client/public/javascripts/bundle.min.js` - Built from Browserify + UglifyJS

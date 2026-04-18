@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PoW Shield Dashboard</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#0a0e17;color:#c9d1d9;min-height:100vh}
+.header{background:#0d1117;padding:20px 40px;border-bottom:1px solid #21262d;display:flex;justify-content:space-between;align-items:center}
+.header h1{color:#58a6ff;font-size:24px}
+.header-right{display:flex;gap:16px;align-items:center}
+.header-right a{color:#58a6ff;text-decoration:none;padding:8px 16px;border:1px solid #30363d;border-radius:6px;cursor:pointer;background:none;font-size:14px}
+.header-right a:hover{background:#161b22}
+.container{max-width:1200px;margin:0 auto;padding:30px 40px}
+.stats-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:20px;margin-bottom:40px}
+.stat-card{background:#161b22;border:1px solid #21262d;border-radius:8px;padding:20px;text-align:center}
+.stat-card h2{color:#58a6ff;font-size:32px;margin-bottom:8px;min-height:40px}
+.stat-card p{color:#8b949e;font-size:14px}
+.section{background:#161b22;border:1px solid #21262d;border-radius:8px;padding:24px;margin-bottom:20px}
+.section h3{color:#58a6ff;margin-bottom:16px;font-size:18px}
+table{width:100%;border-collapse:collapse}
+th,td{text-align:left;padding:10px 12px;border-bottom:1px solid #21262d}
+th{color:#58a6ff;font-weight:600;font-size:13px;text-transform:uppercase}
+td{font-size:14px}
+.badge{display:inline-block;padding:4px 10px;border-radius:12px;font-size:12px;font-weight:600}
+.badge-ok{background:#0e4429;color:#3fb950}
+.badge-fail{background:#4e1116;color:#f85149}
+.btn{background:#238636;color:#fff;border:none;padding:10px 20px;border-radius:6px;cursor:pointer;font-size:14px}
+.btn:hover{background:#2ea043}
+.config-item{display:flex;justify-content:space-between;padding:12px 0;border-bottom:1px solid #21262d}
+.config-item:last-child{border-bottom:none}
+.config-label{color:#8b949e}
+.config-value{color:#c9d1d9;font-weight:600}
+.loading{text-align:center;padding:40px;color:#8b949e}
+.error{color:#f85149;text-align:center;padding:20px;background:#2d0a0a;border-radius:8px;margin-bottom:20px}
+</style>
+</head>
+<body>
+<div class="header">
+<h1>PoW Shield</h1>
+<div class="header-right">
+<button class="btn" onclick="resetStats()">Reset Stats</button>
+<a onclick="logout()">Logout</a>
+</div>
+</div>
+<div class="container">
+<div id="content">
+<div class="loading">Loading dashboard...</div>
+</div>
+</div>
+
+<script>
+const API='/admin/api';
+
+function refresh(){
+fetch(API+'/stats',{credentials:'include'}).then(r=>r.json()).then(d=>{
+let rows='';
+if(d.metrics&&d.metrics.waf_blocked)Object.entries(d.metrics.waf_blocked).forEach(([k,v])=>{if(v>0)rows+='<tr><td>'+k+'</td><td>'+v+'</td></tr>'});
+if(!rows)rows='<tr><td colspan="2">No WAF blocks</td></tr>';
+document.getElementById('content').innerHTML=`
+<div class="stats-grid">
+<div class="stat-card"><h2>${d.metrics.total_requests||0}</h2><p>Total Requests</p></div>
+<div class="stat-card"><h2>${d.metrics.proxied_requests||0}</h2><p>Proxied</p></div>
+<div class="stat-card"><h2>${d.metrics.blocked_responses||0}</h2><p>Blocked</p></div>
+<div class="stat-card"><h2>${d.metrics.pow_blocked||0}</h2><p>PoW Blocked</p></div>
+<div class="stat-card"><h2>${d.metrics.rate_limited||0}</h2><p>Rate Limited</p></div>
+<div class="stat-card"><h2>${d.errors||0}</h2><p>Logged Errors</p></div>
+</div>
+<div class="section">
+<h3>System Configuration</h3>
+<div class="config-item"><span class="config-label">Uptime</span><span class="config-value">${d.uptime}</span></div>
+<div class="config-item"><span class="config-label">Port</span><span class="config-value">${d.config.port}</span></div>
+<div class="config-item"><span class="config-label">TLS</span><span class="config-value">${d.config.use_tls?'<span class="badge badge-ok">Active</span>':'<span class="badge badge-fail">Inactive</span>'}</span></div>
+<div class="config-item"><span class="config-label">WAF</span><span class="config-value">${d.config.waf_active?'<span class="badge badge-ok">Active</span>':'<span class="badge badge-fail">Inactive</span>'}</span></div>
+<div class="config-item"><span class="config-label">PoW</span><span class="config-value">${d.config.pow_active?'<span class="badge badge-ok">Active</span>':'<span class="badge badge-fail">Inactive</span>'}</span></div>
+<div class="config-item"><span class="config-label">Rate Limit</span><span class="config-value">${d.config.rate_active?'<span class="badge badge-ok">Active</span>':'<span class="badge badge-fail">Inactive</span>'}</span></div>
+</div>
+<div class="section">
+<h3>WAF Blocks</h3>
+<table><thead><tr><th>Category</th><th>Count</th></tr></thead><tbody>${rows}</tbody></table>
+</div>`;
+}).catch(()=>{document.getElementById('content').innerHTML='<div class="error">Failed to connect. Please refresh.</div>'});
+}
+
+function logout(){window.location.href='./logout'}
+
+function resetStats(){
+if(!confirm('Reset all statistics?'))return;
+fetch(API+'/reset',{method:'POST',credentials:'include'}).then(refresh);
+}
+
+refresh();
+setInterval(refresh,30000);
+</script>
+</body>
+</html>

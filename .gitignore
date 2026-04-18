@@ -1,3 +1,4 @@
 client/node_modules/*
 server/.env
 TODO.md
+server/pow-shield-go

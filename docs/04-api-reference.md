@@ -227,6 +227,133 @@ Example: `WHITELIST_URL_RULES=[35,53]` excludes rules with IDs 35 and 53 from UR
 
 ---
 
+## Admin Panel
+
+The admin panel is a client-side SPA served at the configurable admin path (default `/admin`). It uses relative paths so it works with any configured admin path prefix.
+
+**Configuration:**
+- `ADMIN_ACTIVE=true` — enables the admin panel (default: `false`)
+- `ADMIN_PATH` — path prefix (default: `/admin`)
+- `ADMIN_PASSWORD` — login password (default: `admin123` if not set)
+- `ADMIN_KEY` — optional API key for header-based auth via `X-Admin-Key`
+
+**Authentication:**
+Admin endpoints accept either a cookie (`admin_session=admim`) or the `X-Admin-Key` header when configured.
+
+### `GET /admin/api/check`
+
+Checks authentication status without requiring prior auth. Returns the authentication method if authenticated.
+
+**Response**
+
+| HTTP Status | Content-Type | Body |
+|-----|-----|------|
+| 200 | `application/json` | `{"ok": true, "auth": "cookie"|"header"}` |
+| 401 | `application/json` | `{"ok": false}` |
+
+**Example**
+
+```bash
+curl http://localhost:5656/admin/api/check
+# → {"ok":false}
+
+curl -H "X-Admin-Key: mysecret" http://localhost:5656/admin/api/check
+# → {"ok":true,"auth":"header"}
+```
+
+### Authentication Endpoints
+
+#### `POST /admin/api/login`
+
+Authenticates and sets the `admin_session` cookie.
+
+**Request Body**
+
+```json
+{"password": "<admin_password>"}
+```
+
+**Response**
+
+| HTTP Status | Content-Type | Body |
+|-----|-----|--|
+| 200 | `application/json` | `{"ok": true}` |
+| 400 | `application/json` | `{"error": "Invalid request"}` |
+| 401 | `application/json` | `{"error": "Invalid credentials"}` |
+
+#### `POST /admin/api/logout`
+
+Clears the session cookie.
+
+**Response**
+
+| HTTP Status | Content-Type | Body |
+|-----|-----|--|
+| 200 | `application/json` | `{"ok": true}` |
+
+### Protected API Endpoints
+
+#### `GET /admin/api/stats`
+
+Returns aggregated metrics, system uptime, and active feature flags. Protected — requires authentication.
+
+**Response**
+
+| HTTP Status | Content-Type | Body |
+|-----|-----|--|
+| 200 | `application/json` | Metrics payload |
+
+**Response Body**
+
+```json
+{
+  "metrics": {
+    "total_requests": 1230,
+    "proxied_requests": 1100,
+    "blocked_responses": 50,
+    "pow_blocked": 30,
+    "rate_limited": 20,
+    "waf_blocked": {"sqli": 10, "xss": 5}
+  },
+  "uptime": "2h30m15s",
+  "config": {
+    "port": 5656,
+    "use_tls": false,
+    "waf_active": true,
+    "pow_active": true,
+    "rate_active": true
+  },
+  "errors": 3
+}
+```
+
+#### `POST /admin/api/reset`
+
+Resets all collected metrics. Protected after reset.
+
+**Response**
+
+| HTTP Status | Content-Type | Body |
+|-----|-----|--|
+| 200 | `application/json` | `{"status": "ok", "message": "Metrics reset successful"}` |
+
+### Static Files
+
+#### `GET /admin/{filename}`
+
+Serves SPA files from `client/public/admin/`. Protected — redirects unauthenticated requests to `/admin/login`.
+
+| File | Purpose |
+|------|---------|
+| `login.html` | Login page with inline CSS/JS |
+| `dashboard.html` | Dashboard with stats, config, and WAF blocks display |
+
+#### `GET /admin/static/{path}`
+
+Serves shared static assets from `client/public/`. No authentication required.
+
+---
+
 ## Security Headers
 
 When `SEC_SSL_REDIRECT=true`, the `unrolled/secure` middleware adds:

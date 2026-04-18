@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PoW Shield Admin</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,sans-serif;background:#0a0e17;color:#c9d1d9;height:100vh;display:flex;align-items:center;justify-content:center}
+.card{background:#161b22;border:1px solid #21262d;border-radius:12px;padding:40px;width:400px;text-align:center}
+h1{color:#58a6ff;margin-bottom:24px;font-size:28px}
+input{width:100%;padding:12px;margin:16px 0;background:#0d1117;border:1px solid #30363d;border-radius:6px;color:#c9d1d9;font-size:16px}
+input:focus{outline:none;border-color:#58a6ff}
+button{width:100%;padding:12px;background:#238636;color:#fff;border:none;border-radius:6px;font-size:16px;font-weight:600;cursor:pointer}
+button:hover{background:#2ea043}
+.error-msg{color:#f85149;margin-top:12px;font-size:14px;min-height:20px}
+</style>
+</head>
+<body>
+<div class="card">
+<h1>PoW Shield</h1>
+<form id="loginForm">
+<input type="password" name="password" placeholder="Password" required autofocus>
+<button type="submit">Sign In</button>
+</form>
+<div id="error" class="error-msg"></div>
+</div>
+<script>
+document.getElementById('loginForm').addEventListener('submit',function(e){
+e.preventDefault();
+var p=this.querySelector('input[type=password]').value;
+document.getElementById('error').textContent='';
+fetch('./api/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:p}),credentials:'include'}).
+then(r=>r.json()).then(d=>{if(d.ok)window.location.href='./dashboard.html';
+else document.getElementById('error').textContent=d.error}).catch(function(){document.getElementById('error').textContent='Connection error'});
+});
+</script>
+</body>
+</html>

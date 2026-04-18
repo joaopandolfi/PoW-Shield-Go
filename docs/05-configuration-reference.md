@@ -106,6 +106,23 @@ PROTECTED_SERVER_HEADERS=["X-Forwarded-For":"127.0.0.1","X-Real-IP":"192.168.1.1
 
 ---
 
+## Admin Panel Configuration
+
+| Variable | Default | Description |
+|----------|-----|--------|
+| `ADMIN_ACTIVE` | `false` | Enable admin panel |
+| `ADMIN_PATH` | `/admin` | URL path prefix for admin SPA |
+| `ADMIN_PASSWORD` | `admin123` | Login password (only used when `ADMIN_KEY` is not set) |
+| `ADMIN_KEY` | (empty) | Optional API key for header-based auth via `X-Admin-Key` header |
+
+**Authentication methods (checked in order):**
+1. `admin_session` cookie = `admin` (HttpOnly, SameSite=Strict)
+2. `X-Admin-Key` request header = value of `ADMIN_KEY`
+
+When `ADMIN_KEY` is set, cookie authentication is optional — header auth can be used as the sole method.
+
+---
+
 ## Configuration Precedence
 
 1. Environment variables (OS)
