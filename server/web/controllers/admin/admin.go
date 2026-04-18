@@ -81,7 +81,12 @@ func (c *controller) loginHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	password := r.FormValue("password")
-	if password == "admin123" {
+	adminConfig := config.Get().Admin
+	expectedPassword := adminConfig.Password
+	if expectedPassword == "" {
+		expectedPassword = "admin123"
+	}
+	if password == expectedPassword {
 		http.SetCookie(w, &http.Cookie{
 			Name:     "admin_session",
 			Value:    "admin_admin",
