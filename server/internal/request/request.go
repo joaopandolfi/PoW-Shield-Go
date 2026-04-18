@@ -7,25 +7,27 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"pow-shield-go/config"
 	"strings"
-	"time"
 )
 
 var transport *http.Transport
-var defaultTimeout time.Duration = time.Second * 30
 
 func getTransport() *http.Transport {
 	if transport == nil {
+		cfg := config.Get().ProtectedServer
 		transport = &http.Transport{
-			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: cfg.InsecureSkipVerify},
 		}
-		http.DefaultClient.Timeout = defaultTimeout
 	}
 	return transport
 }
 
 func RequestWithHeader(method, url string, head map[string]string, data []byte) ([]byte, int, http.Header, error) {
-	client := &http.Client{Transport: getTransport()}
+	client := &http.Client{
+		Transport: getTransport(),
+		Timeout:   config.Get().ProtectedServer.Timeout,
+	}
 
 	payloadData := bytes.NewBuffer(data)
 

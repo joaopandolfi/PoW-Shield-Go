@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"pow-shield-go/config"
 	"pow-shield-go/internal/cache"
+	"pow-shield-go/internal/metrics"
 	"pow-shield-go/models/domain"
 	powServices "pow-shield-go/services/pow"
 	"pow-shield-go/web/handler"
@@ -25,6 +26,7 @@ func PoW(next func(http.ResponseWriter, *http.Request)) http.HandlerFunc {
 		blockReason := ""
 		defer func() {
 			if !success {
+				metrics.IncPoWBlocked()
 				log.Println("[+][Middleware][PoW] Blocking access to", r.URL.String(), handler.IP(r), "-", blockReason)
 			}
 		}()

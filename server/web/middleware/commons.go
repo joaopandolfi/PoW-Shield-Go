@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"net/http"
+	"pow-shield-go/internal/metrics"
 	"pow-shield-go/web/handler"
 )
 
@@ -12,8 +13,8 @@ func cleanAll(w http.ResponseWriter, r *http.Request) {
 }
 
 func blockRequest(w http.ResponseWriter) {
-	w.WriteHeader(http.StatusNotAcceptable)
-	w.Write([]byte("blocked: x_x"))
+	metrics.IncBlockedResponses()
+	handler.RespondBlock(w)
 }
 
 func contains(s []int, e int) bool {

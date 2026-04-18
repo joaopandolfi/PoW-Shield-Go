@@ -6,6 +6,8 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+	"pow-shield-go/config"
+	"pow-shield-go/web"
 	"strings"
 )
 
@@ -20,8 +22,14 @@ func ActiveZipOnResponse() {
 }
 
 func RespondDefaultError(w http.ResponseWriter, status int) {
-	w.WriteHeader(status)
-	w.Write([]byte(""))
+	RespondJson(w, web.DefaultErrorForStatus(status), status)
+}
+
+func RespondBlock(w http.ResponseWriter) {
+	cfg := config.Get().Reply
+	w.Header().Set("Content-Type", cfg.BlockContentType)
+	w.WriteHeader(cfg.BlockStatus)
+	w.Write([]byte(cfg.BlockBody))
 }
 
 // RespondJson - send json result

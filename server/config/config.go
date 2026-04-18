@@ -1,6 +1,7 @@
 package config
 
 import (
+	"crypto/rand"
 	"fmt"
 	"io"
 	"log"
@@ -23,10 +24,13 @@ type Config struct {
 	SecOptions   secure.Options
 	Cors         cors
 	Cache        cache
+	Metrics      metrics
 
 	ProtectedServer protectedServer
 
 	Pow     pow
+	Rate    rateLimit
+	Reply   responseConfig
 	Session session
 	Static  static
 	Waf     waf
@@ -37,7 +41,10 @@ type waf struct {
 	WhiteListURLRules    []int
 	WhiteListHeaderRules []int
 	WhiteListBodyRules   []int
+	AllowTypes           []string
+	BlockTypes           []string
 	RawWafs              string
+	RawWafTypes          string
 }
 
 type static struct {
@@ -47,8 +54,10 @@ type static struct {
 }
 
 type protectedServer struct {
-	Host           string
-	DefaultHeaders map[string]string
+	Host               string
+	DefaultHeaders     map[string]string
+	Timeout            time.Duration
+	InsecureSkipVerify bool
 }
 
 type pow struct {
@@ -79,6 +88,23 @@ type cors struct {
 	Enableds string
 }
 
+type metrics struct {
+	Active bool
+	Path   string
+}
+
+type rateLimit struct {
+	Active        bool
+	Requests      int
+	WindowSeconds int
+}
+
+type responseConfig struct {
+	BlockStatus      int
+	BlockBody        string
+	BlockContentType string
+}
+
 type session struct {
 	Name    string
 	Store   *sessions.CookieStore //*sessions.FilesystemStore
@@ -100,18 +126,37 @@ func Inject(c Config) {
 	cfg = &c
 }
 
+func sessionPass() string {
+	if value, ok := os.LookupEnv("SESSION_PASS"); ok && value != "" {
+		return value
+	}
+
+	buff := make([]byte, 32)
+	if _, err := rand.Read(buff); err != nil {
+		log.Println("[!][Config] failed to generate random SESSION_PASS, using development fallback")
+		return "12345670101112ABC"
+	}
+
+	pass := fmt.Sprintf("%x", buff)
+	log.Println("[!][Config] SESSION_PASS not set, generated ephemeral random key")
+	return pass
+}
+
 func Load() error {
 
 	if cfg != nil {
 		return nil
 	}
 	godotenv.Load(".env")
+	sessionPassphrase := sessionPass()
 
 	cfg = &Config{
-		Port:    fmt.Sprintf(":%s", getEnvOrDefault("PORT", "5656")),
-		UseTLS:  StrTo[bool](getEnvOrDefault("USE_TLS", "false")),
-		TLSCert: getEnvOrDefault("TLS_CERT", ""),
-		TLSKey:  getEnvOrDefault("TLS_KEY", ""),
+		Port:         fmt.Sprintf(":%s", getEnvOrDefault("PORT", "5656")),
+		WriteTimeout: time.Duration(StrTo[int](getEnvOrDefault("WRITE_TIMEOUT_SECONDS", "30"))) * time.Second,
+		ReadTimeout:  time.Duration(StrTo[int](getEnvOrDefault("READ_TIMEOUT_SECONDS", "30"))) * time.Second,
+		UseTLS:       StrTo[bool](getEnvOrDefault("USE_TLS", "false")),
+		TLSCert:      getEnvOrDefault("TLS_CERT", ""),
+		TLSKey:       getEnvOrDefault("TLS_KEY", ""),
 
 		SecOptions: secure.Options{
 			BrowserXssFilter:   StrTo[bool](getEnvOrDefault("SEC_BROWSER_XSS_FILTER", "true")),
@@ -119,18 +164,22 @@ func Load() error {
 			SSLHost:            getEnvOrDefault("SEC_SSL_HOST", "localhost:443"),
 			SSLRedirect:        StrTo[bool](getEnvOrDefault("SEC_SSL_REDIRECT", "false")),
 		},
+		Metrics: metrics{
+			Active: StrTo[bool](getEnvOrDefault("METRICS_ACTIVE", "true")),
+			Path:   getEnvOrDefault("METRICS_PATH", "/metrics"),
+		},
 		Session: session{
 			Name:  getEnvOrDefault("SESSION_NAME", "PoW-Session"),
-			Store: sessions.NewCookieStore([]byte(getEnvOrDefault("SESSION_PASS", "12345670101112ABC"))),
+			Store: sessions.NewCookieStore([]byte(sessionPassphrase)),
 			Fstore: sessions.NewFilesystemStore(
 				filepath.Join(os.TempDir(), "pow-shield-go-sessions"),
-				[]byte(getEnvOrDefault("SESSION_PASS", "12345670101112ABC")),
+				[]byte(sessionPassphrase),
 			),
 			Options: &sessions.Options{
 				Path:     getEnvOrDefault("SESSION_PATH", "/"),
 				MaxAge:   StrTo[int](getEnvOrDefault("SESSION_MAX_AGE", "7200")), //3600 * 2, //86400 * 7,
 				HttpOnly: StrTo[bool](getEnvOrDefault("SESSION_HTTP_ONLY", "true")),
-				Secure:   StrTo[bool](getEnvOrDefault("SESSION_SECURE", "true")),
+				Secure:   StrTo[bool](getEnvOrDefault("SESSION_SECURE", fmt.Sprintf("%t", StrTo[bool](getEnvOrDefault("USE_TLS", "false"))))),
 			},
 		},
 		Pow: pow{
@@ -145,8 +194,20 @@ func Load() error {
 			Active:                      StrTo[bool](getEnvOrDefault("POW_ACTIVE", "true")),
 		},
 		ProtectedServer: protectedServer{
-			Host:           getEnvOrDefault("PROTECTED_SERVER_HOST", "http://localhost:3001"),
-			DefaultHeaders: StrTo[map[string]string](getEnvOrDefault("PROTECTED_SERVER_HEADERS", "[]")),
+			Host:               getEnvOrDefault("PROTECTED_SERVER_HOST", "http://localhost:3001"),
+			DefaultHeaders:     StrTo[map[string]string](getEnvOrDefault("PROTECTED_SERVER_HEADERS", "[]")),
+			Timeout:            time.Duration(StrTo[int](getEnvOrDefault("PROTECTED_SERVER_TIMEOUT_SECONDS", "30"))) * time.Second,
+			InsecureSkipVerify: StrTo[bool](getEnvOrDefault("PROTECTED_SERVER_INSECURE_SKIP_VERIFY", "false")),
+		},
+		Rate: rateLimit{
+			Active:        StrTo[bool](getEnvOrDefault("RATE_LIMIT_ACTIVE", "true")),
+			Requests:      StrTo[int](getEnvOrDefault("RATE_LIMIT_REQUESTS", "120")),
+			WindowSeconds: StrTo[int](getEnvOrDefault("RATE_LIMIT_WINDOW_SECONDS", "60")),
+		},
+		Reply: responseConfig{
+			BlockStatus:      StrTo[int](getEnvOrDefault("BLOCK_RESPONSE_STATUS", "406")),
+			BlockBody:        getEnvOrDefault("BLOCK_RESPONSE_BODY", "blocked: x_x"),
+			BlockContentType: getEnvOrDefault("BLOCK_RESPONSE_CONTENT_TYPE", "text/plain; charset=utf-8"),
 		},
 		Static: static{
 			ServeStatic:  StrTo[bool](getEnvOrDefault("SERVE_STATIC", "true")),
@@ -158,7 +219,10 @@ func Load() error {
 			WhiteListURLRules:    StrTo[[]int](getEnvOrDefault("WHITELIST_URL_RULES", "[]")),
 			WhiteListBodyRules:   StrTo[[]int](getEnvOrDefault("WHITELIST_BODY_RULES", "[]")),
 			WhiteListHeaderRules: StrTo[[]int](getEnvOrDefault("WHITELIST_HEADER_RULES", "[]")),
+			AllowTypes:           StrTo[[]string](getEnvOrDefault("WAF_ALLOW_TYPES", "[]")),
+			BlockTypes:           StrTo[[]string](getEnvOrDefault("WAF_BLOCK_TYPES", "[]")),
 			RawWafs:              loadWafRules(getEnvOrDefault("WAF_RULES_FILE", "wafRules.json")),
+			RawWafTypes:          loadWafRules(getEnvOrDefault("WAF_TYPES_FILE", "wafTypes.json")),
 		},
 		Cache: cache{
 			Redis: redis{

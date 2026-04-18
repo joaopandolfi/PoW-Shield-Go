@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/http"
 	"pow-shield-go/config"
+	"pow-shield-go/internal/metrics"
 	"pow-shield-go/internal/request"
 	"pow-shield-go/web/controllers"
 	"pow-shield-go/web/handler"
@@ -25,6 +26,7 @@ func New() controllers.Controller {
 }
 
 func (s *controller) proxy(w http.ResponseWriter, r *http.Request) {
+	metrics.IncRequest()
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
 		log.Println("[!][ERROR][proxy] reading body", err.Error())
@@ -48,6 +50,7 @@ func (s *controller) proxy(w http.ResponseWriter, r *http.Request) {
 		handler.RespondDefaultError(w, http.StatusBadRequest)
 		return
 	}
+	metrics.IncProxied()
 
 	for v, k := range reqHeader {
 		w.Header().Add(v, strings.Join(k, ","))

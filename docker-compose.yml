@@ -1,0 +1,25 @@
+version: "3.9"
+
+services:
+  pow-shield:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "5656:5656"
+    environment:
+      PORT: "5656"
+      PROTECTED_SERVER_HOST: "http://backend:3001"
+      SERVE_STATIC: "true"
+      SERVE_STATIC_FOLDER: "/app/client/public"
+      WAF_RULES_FILE: "/app/wafRules.json"
+      WAF_TYPES_FILE: "/app/wafTypes.json"
+      SESSION_SECURE: "false"
+    depends_on:
+      - backend
+
+  backend:
+    image: hashicorp/http-echo:1.0.0
+    command: ["-listen=:3001", "-text=protected backend"]
+    ports:
+      - "3001:3001"

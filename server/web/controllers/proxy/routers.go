@@ -11,6 +11,10 @@ func (c *controller) SetupRouter(s *server.Server) {
 	c.s = s
 	handler := c.proxy
 
+	if config.Get().Rate.Active {
+		handler = middleware.RateLimit(handler)
+	}
+
 	if config.Get().Waf.Active {
 		handler = middleware.Waf(handler)
 	}
