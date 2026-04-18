@@ -42,7 +42,7 @@ The project is **fully implemented** with all major components present. All crit
 | Component | File | Status | Notes |
 |-----------|------|--------|-------|
 | WAF rules | `server/wafRules.json` | Done | 120 rules (XSS, SQLi, RCE, etc.) |
-| WAF types | `server/wafTypes.json` | Done BUT UNUSED | Not referenced by any Go code |
+| WAF types | `server/wafTypes.json` | Done | Loaded in `waf.go:37-46` with fallback for string keys |
 | WAF init | `server/web/middleware/waf.go` | Done | Body restored with `io.NopCloser` |
 | PoW middleware | `server/web/middleware/pow.go` | Done | Validates session state |
 | Identificator | `server/web/middleware/identificator.go` | Done | SHA1 client IP hashing |
@@ -121,8 +121,9 @@ The project is **fully implemented** with all major components present. All crit
 - Prometheus metrics endpoints
 - Docker and docker-compose deployment support
 
-## 5. Recent Fixes - 2026-04-18
+## 5. Resolved Issues
 
+### Typos Fixed
 | Issue | File(s) | Fix Applied |
 |-------|---------|-------------|
 | `gracefullShutdown` typo | `cache.go`, `memory.go`, `redis.go`, `redis_test.go`, `safe.go`, `main.go` | Renamed to `GracefulShutdown()` / `gracefulShutdown()` |
@@ -131,5 +132,9 @@ The project is **fully implemented** with all major components present. All crit
 | "ised" comment typo | `injectable.go` | Fixed to "is used" |
 | Redis test compilation | `redis_test.go:48` | Fixed call to renamed method |
 
-| Config default mismatch | `.env.example` shows `USE_COOKIE=false`, code default is `true` | Documentation mismatch |
+### Remaining Items
+| Item | Description | Status |
+|------|-------------|--------|
+| Config default mismatch | `.env.example` shows `USE_COOKIE=false`, code default is `true` | Documentation only |
 | `wafRules.json` path | Relative path, depends on working directory | May fail in production deployments |
+| `wafTypes.json` note | Listed as unused but actually consumed in `waf.go:37-46` | Documentation stale |
