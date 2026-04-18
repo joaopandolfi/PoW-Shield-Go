@@ -16,10 +16,11 @@
 - [x] Prometheus metrics endpoints added
 - [x] Docker and docker-compose deployment support
 - [x] TLS configuration for proxy transport
+- [x] Structured JSON logging (log/slog)
+- [x] Admin dashboard (/admin)
 
 ## Remaining Items 🚧
 
 - [ ] Integration tests (Redis, WAF, end-to-end)
 - [ ] OpenAPI/Swagger spec for API documentation
 - [ ] Add more granular WAF rule categories
-- [ ] Admin dashboard for monitoring
