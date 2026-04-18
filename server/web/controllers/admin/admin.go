@@ -59,8 +59,12 @@ func (c *controller) isLoggedIn(w http.ResponseWriter, r *http.Request, role str
 	if err == nil && cookie.Value == role+"_"+role {
 		return true
 	}
-	if role == "admin" && r.Header.Get("X-Admin-Key") == "admin_key_123" {
-		return true
+	if role == "admin" {
+		configKey := config.Get().Admin.Key
+		cookieKey := r.Header.Get("X-Admin-Key")
+		if configKey != "" && cookieKey == configKey {
+			return true
+		}
 	}
 	return false
 }

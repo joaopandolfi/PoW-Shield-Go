@@ -47,6 +47,7 @@ type logging struct {
 type admin struct {
 	Active bool
 	Path   string
+	Key    string
 }
 
 type waf struct {
@@ -248,6 +249,7 @@ func Load() error {
 		Admin: admin{
 			Active: StrTo[bool](getEnvOrDefault("ADMIN_ACTIVE", "false")),
 			Path:   getEnvOrDefault("ADMIN_PATH", "/admin"),
+			Key:    getEnvOrDefault("ADMIN_KEY", ""),
 		},
 		Logging: logging{
 			Level:       getEnvOrDefault("LOG_LEVEL", "INFO"),
