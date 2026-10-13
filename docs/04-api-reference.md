@@ -159,6 +159,26 @@ curl -X POST http://localhost:5656/pow/ \
 
 ---
 
+## Attest Handshake
+
+### `POST /v1/handshake` (`ATTEST_PATH`)
+
+Enabled with `ATTEST_ACTIVE=true`. Hands the WAF public key and a client id to devices that passed Firebase App Check (Play Integrity / App Attest).
+
+| Header | Required | Description |
+|--------|----------|-------------|
+| `X-Firebase-AppCheck` (`ATTEST_HEADER`) | Yes | Firebase App Check token |
+
+| Status | Body | When |
+|--------|------|------|
+| 200 | `{"key":"<armored public key>","id":"<uuid>","exp":<unix>}` | Valid token; the same token always returns the same id |
+| 406 | `BLOCK_RESPONSE_BODY` | Missing/invalid/expired token, wrong project or app |
+| 503 | `{"code":14,...}` | Firebase keys unavailable and nothing cached |
+
+With attestation on, the contract rejects (406) any client id not issued here. Details in [sprint3.md](sprint3.md).
+
+---
+
 ## Reverse Proxy
 
 ### `ANY /*`
@@ -176,7 +196,7 @@ Forwards all requests to the protected backend server. Protected by the middlewa
 
 | Status | When |
 |--------|------|
-| `BLOCK_RESPONSE_STATUS` (406) | Missing/invalid header, wrong key, stale timestamp, unknown version, invalid uuid, request binding mismatch, v1 when binding is required, blocked client |
+| `BLOCK_RESPONSE_STATUS` (406) | Missing/invalid header, wrong key, stale timestamp, unknown version, invalid uuid, request binding mismatch, v1 when binding is required, client id not attested (when `ATTEST_ACTIVE`), blocked client |
 | 429 + `Retry-After` | Per-uuid rate limit (`CONTRACT_RATE_LIMIT_*`) |
 | 401 `{"prefix","difficulty"}` | No solved challenge in the payload, token exhausted, wrong solution or replay (the last three with raised difficulty) |
 | 500 | Cache error (fail closed) |

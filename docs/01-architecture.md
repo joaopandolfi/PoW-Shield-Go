@@ -68,6 +68,9 @@ server/
   services/
     contract/
       contract.go                # WAF key loading, header decrypt, payload validation
+    appcheck/
+      appcheck.go                # Firebase App Check JWT verification (RS256, cached JWKS)
+      appchecktest/firebase.go   # Fake App Check issuer for tests
     pow/
       generator.go               # PoW problem generator
       verifier.go                # PoW nonce verifier
@@ -98,6 +101,8 @@ server/
       proxy/
         proxy.go                 # Reverse proxy handler
         routers.go               # / route setup
+      attest/
+        attest.go                # POST /v1/handshake: App Check -> WAF key + client id
       health/
         health.go                # Health check endpoint
         routes.go                # /health route setup
@@ -174,3 +179,4 @@ make test-e2e                    # docker: 2 WAF instances + Redis + backend, co
 | [07-contract-payloads.md](07-contract-payloads.md) | Contract headers, payloads and responses |
 | [sprint1.md](sprint1.md) | Encrypted contract: design, Redis, e2e, limitations |
 | [sprint2.md](sprint2.md) | Per-uuid rate limit, atomic difficulty, request binding |
+| [sprint3.md](sprint3.md) | App Check handshake: WAF key + attested client id |

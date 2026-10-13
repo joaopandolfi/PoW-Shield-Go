@@ -34,5 +34,4 @@ done
 
 cd server
 E2E_URLS="http://localhost:5656,http://localhost:5657" \
-E2E_PUBKEY="$root/e2e/.keys/waf.pub.asc" \
 	go test -tags e2e -count=1 -v ./e2e/

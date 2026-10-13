@@ -42,8 +42,14 @@ func RequestHash(method, requestURI string, body []byte) string {
 
 // Verifier opens the contract header: base64 of an OpenPGP message (binary or armored) encrypted to the WAF key
 type Verifier struct {
-	keyring openpgp.EntityList
-	maxAge  time.Duration
+	keyring   openpgp.EntityList
+	maxAge    time.Duration
+	publicKey string
+}
+
+// PublicKey is the armored public part of the WAF key, what clients encrypt to
+func (v *Verifier) PublicKey() string {
+	return v.publicKey
 }
 
 // Load reads the WAF armored private key, decrypting it with passphrase when protected
@@ -67,7 +73,21 @@ func Load(privateKeyFile, passphrase string, maxAge time.Duration) (*Verifier, e
 		}
 	}
 
-	return &Verifier{keyring: keyring, maxAge: maxAge}, nil
+	var pub bytes.Buffer
+	w, err := armor.Encode(&pub, openpgp.PublicKeyType, nil)
+	if err != nil {
+		return nil, err
+	}
+	for _, e := range keyring {
+		if err := e.Serialize(w); err != nil {
+			return nil, fmt.Errorf("exporting public key: %w", err)
+		}
+	}
+	if err := w.Close(); err != nil {
+		return nil, err
+	}
+
+	return &Verifier{keyring: keyring, maxAge: maxAge, publicKey: pub.String()}, nil
 }
 
 // Verify decrypts the header and checks version, uuid and timestamp

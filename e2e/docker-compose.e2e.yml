@@ -16,6 +16,11 @@ x-contract-env: &contract-env
   CONTRACT_MAX_USES: "3"
   CONTRACT_MAX_DIFFICULTY: "18"
   CONTRACT_RATE_LIMIT_REQUESTS: "20"
+  # App Check faked by the e2e test itself (JWKS served on the host, port 18080)
+  ATTEST_ACTIVE: "true"
+  ATTEST_JWKS_URL: "http://host.docker.internal:18080"
+  FIREBASE_PROJECT_NUMBER: "123456789"
+  FIREBASE_APP_IDS: '["1:123456789:android:abc"]'
 
 services:
   pow-shield:
@@ -23,6 +28,8 @@ services:
     environment: *contract-env
     volumes:
       - ./e2e/.keys:/keys:ro
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
 
   pow-shield-2:
     image: pow-shield-go:e2e
@@ -32,6 +39,8 @@ services:
     environment: *contract-env
     volumes:
       - ./e2e/.keys:/keys:ro
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     ports:
       - "5657:5656"
     depends_on:

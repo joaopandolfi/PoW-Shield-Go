@@ -99,6 +99,22 @@ Base difficulty and increment reuse `DEFAULT_PREFIX_SIZE` and `PUNISHMENT`. The 
 
 ---
 
+## Attest Configuration (Firebase App Check handshake)
+
+See [sprint3.md](sprint3.md).
+
+| Variable | Default | Description |
+|----------|---------|-------|
+| `ATTEST_ACTIVE` | `false` | Enable the handshake endpoint; the contract then only accepts client ids issued by it. Requires `CONTRACT_ACTIVE=true` and `FIREBASE_PROJECT_NUMBER` |
+| `ATTEST_PATH` | `/v1/handshake` | Handshake path (POST) |
+| `ATTEST_HEADER` | `X-Firebase-AppCheck` | Header carrying the App Check token |
+| `FIREBASE_PROJECT_NUMBER` | (empty) | Firebase project number |
+| `FIREBASE_APP_IDS` | `[]` | JSON array of accepted Firebase app ids, empty accepts any app of the project |
+| `ATTEST_JWKS_URL` | `https://firebaseappcheck.googleapis.com/v1/jwks` | App Check signing keys (override only in tests) |
+| `ATTEST_ID_TTL_SECONDS` | `86400` | Lifetime of an issued client id |
+
+---
+
 ## Redis Cache Configuration
 
 | Variable | Default | Description |

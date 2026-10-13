@@ -2,11 +2,31 @@
 
 Referência de tudo que trafega entre o front e o WAF no fluxo do contrato criptografado. O protocolo, a configuração e as decisões de design estão em [sprint1.md](sprint1.md).
 
+## Handshake (com `ATTEST_ACTIVE=true`)
+
+Antes de usar o contrato, o app obtém a chave e o uuid:
+
+```
+POST /v1/handshake
+X-Firebase-AppCheck: <token do Firebase App Check>
+
+200 {"key":"-----BEGIN PGP PUBLIC KEY BLOCK-----\n...","id":"3f2b8c1e-...","exp":1760457600}
+```
+
+| Campo | Uso |
+|---|---|
+| `key` | Chave pública armored do WAF. Cifrar o contrato com ela e manter só em memória |
+| `id` | O `uuid` do payload. Com atestação ligada, só ids emitidos aqui são aceitos |
+| `exp` | Unix em segundos. Refazer o handshake antes disso; depois, o contrato responde 406 |
+
+Repetir o mesmo token do App Check devolve o mesmo `id`. Token inválido recebe 406. Detalhes em [sprint3.md](sprint3.md).
+
 ## Headers
 
 | Header | Direção | Obrigatório | Configurável por | Conteúdo |
 |---|---|---|---|---|
 | `X-Request-Context` | front → WAF | sim, em toda request ao proxy | `CONTRACT_HEADER` | `base64(gpg_encrypt(payload))` |
+| `X-Firebase-AppCheck` | front → WAF | só no handshake | `ATTEST_HEADER` | token do Firebase App Check |
 | `Retry-After` | WAF → front | só no 429 | — | segundos até liberar o rate limit: `CONTRACT_RATE_LIMIT_WINDOW_SECONDS` (por uuid) ou `RATE_LIMIT_WINDOW_SECONDS` (por IP) |
 
 - O nome default é propositalmente genérico: nada de "pgp", "pow" ou "challenge" no nome.
@@ -31,7 +51,7 @@ Texto ASCII, campos separados por `:`, sem espaços nem quebra de linha.
 | Campo | Formato | Regra |
 |---|---|---|
 | `version` | `1` ou `2` | v2 inclui `request_hash` |
-| `uuid` | UUID (`xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx`) | Id do cliente. Normalizado para minúsculas no servidor |
+| `uuid` | UUID (`xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx`) | Id do cliente. Com `ATTEST_ACTIVE=true`, precisa ser o `id` recebido no handshake |
 | `unix_ts` | inteiro, segundos desde epoch | Diferença para o relógio do servidor no máximo `CONTRACT_MAX_AGE_SECONDS` (default 30), para trás ou para frente |
 | `request_hash` | hex, 64 caracteres (só v2) | `sha256` da request; definição abaixo |
 | `prefix` | hex, 32 caracteres | Exatamente o `prefix` recebido no 401 |

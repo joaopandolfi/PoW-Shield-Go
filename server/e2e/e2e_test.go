@@ -13,6 +13,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"pow-shield-go/services/appcheck/appchecktest"
 	"pow-shield-go/services/contract"
 	"pow-shield-go/services/utils"
 	"strings"
@@ -24,6 +25,12 @@ import (
 )
 
 const header = "X-Request-Context"
+
+type attestResponse struct {
+	Key string `json:"key"`
+	ID  string `json:"id"`
+	Exp int64  `json:"exp"`
+}
 
 type challenge struct {
 	Prefix     string `json:"prefix"`
@@ -103,16 +110,6 @@ func TestContractE2E(t *testing.T) {
 	}
 	a, b := urls[0], urls[1]
 
-	raw, err := os.ReadFile(os.Getenv("E2E_PUBKEY"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	waf, err := openpgp.ReadArmoredKeyRing(bytes.NewReader(raw))
-	if err != nil {
-		t.Fatal(err)
-	}
-	c := &client{t: t, waf: waf, id: uuid.NewString()}
-
 	step := func(name string, got, want int, body string) {
 		t.Helper()
 		if got != want {
@@ -120,6 +117,48 @@ func TestContractE2E(t *testing.T) {
 		}
 		t.Logf("ok  %-45s %d", name, got)
 	}
+
+	// attestation: the device gets the WAF key and its id from the handshake, after App Check
+	firebase := appchecktest.NewFirebaseAt(t, ":18080")
+	firebase.Project, firebase.App = "123456789", "1:123456789:android:abc"
+	handshake := func(url, token string) (int, string, attestResponse) {
+		req, _ := http.NewRequest("POST", url+"/v1/handshake", nil)
+		if token != "" {
+			req.Header.Set("X-Firebase-AppCheck", token)
+		}
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer resp.Body.Close()
+		body, _ := io.ReadAll(resp.Body)
+		var r attestResponse
+		json.Unmarshal(body, &r)
+		return resp.StatusCode, string(body), r
+	}
+	attested := func(url string) *client {
+		t.Helper()
+		code, body, r := handshake(url, firebase.Sign(t, func(_, c map[string]any) { c["jti"] = uuid.NewString() }))
+		if code != 200 {
+			t.Fatalf("handshake: status %d (body %q)", code, body)
+		}
+		waf, err := openpgp.ReadArmoredKeyRing(strings.NewReader(r.Key))
+		if err != nil {
+			t.Fatal(err)
+		}
+		return &client{t: t, waf: waf, id: r.ID}
+	}
+
+	code, body, _ := handshake(a, "")
+	step("handshake without App Check token", code, 406, body)
+	code, body, _ = handshake(b, firebase.Sign(t, func(_, c map[string]any) { c["sub"] = "1:123456789:android:other" }))
+	step("handshake with token of another app", code, 406, body)
+	c := attested(a)
+	t.Logf("ok  %-45s %s", "handshake issued id", c.id)
+
+	forger := &client{t: t, waf: c.waf, id: uuid.NewString()}
+	code, body, _ = forger.send(b, forger.contract(""))
+	step("self-made uuid with the right key", code, 406, body)
 	wantDifficulty := func(name string, ch challenge, want int) {
 		t.Helper()
 		if ch.Difficulty != want || ch.Prefix == "" {
@@ -128,7 +167,7 @@ func TestContractE2E(t *testing.T) {
 	}
 
 	// rejections
-	code, body, _ := c.send(a, "")
+	code, body, _ = c.send(a, "")
 	step("no header", code, 406, body)
 	code, body, _ = c.send(a, utils.ToBase64([]byte("1:"+c.id+":1")))
 	step("plaintext header", code, 406, body)
@@ -176,7 +215,7 @@ func TestContractE2E(t *testing.T) {
 	step("blocked on the other instance", code, 406, body)
 
 	// request binding (v2) through the real proxy
-	bc := &client{t: t, waf: waf, id: uuid.NewString()}
+	bc := attested(b)
 	uri, payload := "/api/orders?page=2", `{"item":42}`
 	code, body, ch = bc.sendReq("POST", a, uri, payload, bc.bound("POST", uri, payload, ""))
 	step("v2 bound, no challenge", code, 401, body)
@@ -189,7 +228,7 @@ func TestContractE2E(t *testing.T) {
 	step("v2 path tampered", code, 406, body)
 
 	// rate limit per uuid (CONTRACT_RATE_LIMIT_REQUESTS=20), shared by both instances
-	rl := &client{t: t, waf: waf, id: uuid.NewString()}
+	rl := attested(a)
 	for i := 1; i <= 20; i++ {
 		if code, body, _ = rl.send(urls[i%2], rl.contract("")); code != 401 {
 			t.Fatalf("uuid rate limit request %d: status %d, want 401 (body %q)", i, code, body)
@@ -199,7 +238,7 @@ func TestContractE2E(t *testing.T) {
 	step("uuid over rate limit (21st, across instances)", code, 429, body)
 
 	// another client is unaffected
-	other := &client{t: t, waf: waf, id: uuid.NewString()}
+	other := attested(b)
 	code, body, ch = other.send(b, other.contract(""))
 	step("other client gets base difficulty", code, 401, body)
 	wantDifficulty("other client", ch, 12)

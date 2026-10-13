@@ -4,6 +4,7 @@ import (
 	"pow-shield-go/config"
 	powServices "pow-shield-go/services/pow"
 	"pow-shield-go/web/controllers/admin"
+	"pow-shield-go/web/controllers/attest"
 	"pow-shield-go/web/controllers/health"
 	"pow-shield-go/web/controllers/metrics"
 	"pow-shield-go/web/controllers/pow"
@@ -38,6 +39,9 @@ func (r *Router) Setup() {
 	pow.New(generator, verifier).SetupRouter(r.createSubRouter("/pow"))
 	health.New().SetupRouter(r.s)
 	metrics.New().SetupRouter(r.s)
+	if config.Get().Attest.Active {
+		attest.New().SetupRouter(r.s) // before the proxy catch-all
+	}
 	proxy.New().SetupRouter(r.s)
 
 	if config.Get().Admin.Active {

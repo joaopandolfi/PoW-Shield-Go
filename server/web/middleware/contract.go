@@ -38,6 +38,16 @@ func InitContract() {
 	contractVerifier = v
 }
 
+// ContractPublicKey is the armored WAF public key handed to attested devices
+func ContractPublicKey() string {
+	return contractVerifier.PublicKey()
+}
+
+// AttestedKey is the cache key marking a client id issued by the attest endpoint
+func AttestedKey(id string) string {
+	return contractKey("a", id, "")
+}
+
 type contractChallenge struct {
 	Prefix     string `json:"prefix"`
 	Difficulty int    `json:"difficulty"`
@@ -93,6 +103,21 @@ func Contract(next func(http.ResponseWriter, *http.Request)) http.HandlerFunc {
 			}
 			blockRequest(w)
 			return
+		}
+
+		// with attestation on, only ids issued to devices that passed App Check (Play Integrity / App Attest) get in
+		if config.Get().Attest.Active {
+			attested, err := contractCache.Get(AttestedKey(id))
+			if cacheFailed(w, err) {
+				return
+			}
+			if attested == nil {
+				if log != nil {
+					log.Warn("Contract rejected", "ip", handler.IP(r), "client", id, "reason", "client id not issued by attest")
+				}
+				blockRequest(w)
+				return
+			}
 		}
 
 		if cfg.RateRequests > 0 {

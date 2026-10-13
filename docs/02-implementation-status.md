@@ -88,6 +88,8 @@ The project is **fully implemented** with all major components present. All crit
 | Per-uuid rate limit | `server/web/middleware/contract.go` | Done | Sprint 2, atomic fixed window |
 | Request binding (v2) | `server/services/contract/contract.go` | Done | Sprint 2, `sha256(method\nURI\nbody)` |
 | Atomic difficulty | `server/internal/cache/` (`Incr`) | Done | Sprint 2 |
+| App Check verifier | `server/services/appcheck/appcheck.go` | Done | Sprint 3, RS256 + cached JWKS, fake issuer in `appchecktest` |
+| Attest handshake | `server/web/controllers/attest/attest.go` | Done | Sprint 3, issues WAF key + attested client id |
 
 ---
 
