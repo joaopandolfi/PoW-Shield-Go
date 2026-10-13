@@ -1,5 +1,7 @@
 # Sprint 1 — Contrato PGP criptografado + challenge por cliente
 
+Headers, payloads e respostas em formato de referência: [07-contract-payloads.md](07-contract-payloads.md).
+
 Implementação do `specs_v2.md`: o front manda em todo request um header com `gpg_encrypt(<version>:<uuid>:<timestamp>)`, criptografado com a chave pública do WAF. Id, versão e timestamp nunca trafegam em texto aberto, o que dificulta a engenharia reversa do protocolo.
 
 ## Chaves

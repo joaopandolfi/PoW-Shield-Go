@@ -195,4 +195,6 @@ The whitelist rules in `.env.example` may be intentional deviations, but develop
 5. **Configure `PROTECTED_SERVER_HOST`** to the actual backend URL
 6. **Generate `TLS_CERT` and `TLS_KEY`** if using HTTPS
 7. **Review WAF whitelist rules** to avoid blocking legitimate requests
-8. **Monitor in-memory cache** -- the 150-entry limit should have eviction or Redis should be used
+8. **Use Redis for real traffic** -- the in-memory cache (limit 100000, see [03-bugs-and-issues.md](03-bugs-and-issues.md)) is per instance and scans the map when full
+9. **Contract:** keep the WAF private key out of the image and the repo (mount it, `*.key.asc` is gitignored), protect it with `CONTRACT_PRIVATE_KEY_PASSPHRASE`, and keep server clocks in sync (NTP) since `CONTRACT_MAX_AGE_SECONDS` compares against the server clock
+10. **Contract with multiple instances** requires `REDIS_USE=true` (Redis 6.2+); otherwise replay, tokens and blocks are per instance

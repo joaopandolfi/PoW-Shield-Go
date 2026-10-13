@@ -180,7 +180,7 @@ Forwards all requests to the protected backend server. Protected by the middlewa
 | 401 `{"prefix","difficulty"}` | No solved challenge in the payload, token exhausted, wrong solution or replay (the last three with raised difficulty) |
 | 500 | Cache error (fail closed) |
 
-Payload: `<version>:<uuid>:<unix_ts>` or `<version>:<uuid>:<unix_ts>:<prefix>:<nonce_hex>`. Full protocol in [sprint1.md](sprint1.md).
+Payload: `<version>:<uuid>:<unix_ts>` or `<version>:<uuid>:<unix_ts>:<prefix>:<nonce_hex>`. Headers, payloads and response bodies in [07-contract-payloads.md](07-contract-payloads.md); design in [sprint1.md](sprint1.md).
 
 **Upstream**
 

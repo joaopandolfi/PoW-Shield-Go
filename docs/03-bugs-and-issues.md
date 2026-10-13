@@ -32,6 +32,7 @@
 - **Issue:** `MAX_BUFF_SIZE = 150` limit sem eviction strategy
 - **Fix Applied:** Implemented TTL-based eviction — removes expired entries when buffer reaches limit before failing
 - **Current behavior:** `Put()` now evicts oldest expired entries instead of returning "buffer overflow" error
+- **Sprint 1:** `MAX_BUFF_SIZE` raised to 100000. Valid entries are never evicted; past the limit every `Put` scans the map for expired ones, which with 150 happened on almost every request once the contract started storing a replay hash per request. Use Redis for real traffic.
 
 ### 5. Hardcoded CookieStore Secret ✅ FIXED
 - **File:** `server/config/config.go:129-143`
@@ -166,3 +167,18 @@
 | Session Store Options | `handler/session.go` | CookieStore session options configuration |
 | Proxy Headers | `proxy/proxy.go` | Custom headers for proxied requests |
 
+---
+
+## Sprint 1 — Issues found and fixed
+
+| Issue | Fix |
+|-------|-----|
+| Cache errors ignored in the new contract flow would let requests continue unchecked | Contract middleware fails closed: any cache error answers 500 |
+| Replay check was get+put, two simultaneous replays could both pass | `PutIfAbsent` (`SET NX` on Redis, lock on memory) |
+| Token use counter was get+put, parallel requests could exceed `CONTRACT_MAX_USES` | `IncrIfExists` (Lua `EXISTS`+`INCR`, keeps TTL, never creates the key) |
+| Challenge consume was get+delete, same solution could be spent twice across instances | `GetDel` (`GETDEL`, Redis 6.2+) |
+| Parallel burst over the use limit raised difficulty once per request | Only the request that crosses the limit raises it |
+| Server started with Redis unreachable | Startup `PING`, process exits on failure |
+| `e2e/run.sh` left containers up (cleanup ran from the wrong directory) | Cleanup `cd`s back to the repo root |
+
+Known remaining: the per-client difficulty is still get+put, so simultaneous events may lose one increment (errs toward less punishment, never fewer checks).

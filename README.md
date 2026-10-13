@@ -51,6 +51,15 @@ make build-front-tools
 make build-front
 ```
 
+### Encrypted client contract
+Clients send `base64(gpg_encrypt("1:<uuid>:<unix_ts>"))` in `X-Request-Context` and solve a per-client PoW challenge. Enable with `CONTRACT_ACTIVE=true` and `CONTRACT_PRIVATE_KEY_FILE`. See [docs/07-contract-payloads.md](docs/07-contract-payloads.md) for headers and payloads and [docs/sprint1.md](docs/sprint1.md) for the design.
+
+### Tests
+```sh
+make test-backend
+make test-e2e        # docker: 2 WAF instances + Redis + backend
+```
+
 ### Simple test
 1. Build the backend
 2. Build the client
