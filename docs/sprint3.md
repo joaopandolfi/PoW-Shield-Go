@@ -94,6 +94,34 @@ Chaves no Redis: `ct:a:<uuid>` (uuid atestado, valor = app id) e `ct:h:<sha256 d
   - Uuid inventado com a chave certa recebe 406.
   - Todo o fluxo das sprints 1 e 2 roda com uuids atestados.
 
+## Dificuldade progressiva por janela
+
+Pensada para quando o WAF fica na frente do autenticador: quanto mais requests o mesmo uuid faz dentro da janela, mais caro fica o próximo challenge.
+
+```
+dificuldade = base (ou a dificuldade de punição, se houver)
+            + CONTRACT_DIFFICULTY_STEP * floor((requests_na_janela - 1) / CONTRACT_DIFFICULTY_EVERY)
+            limitada a CONTRACT_MAX_DIFFICULTY
+```
+
+- **Janela:** `CONTRACT_RATE_LIMIT_WINDOW_SECONDS` (default 60 s, ou seja 1 minuto). Usa o mesmo contador atômico do rate limit por uuid (`ct:l:<uuid>:`) e zera quando a janela expira.
+- **O que conta:** toda request do uuid com contrato válido, inclusive as que só pedem challenge. Pegar challenges adiantados para usar depois também encarece.
+- **Teto:** limitada a `CONTRACT_MAX_DIFFICULTY` e **nunca bloqueia**, porque é carga, não abuso. Bloqueio continua vindo só das punições (solução errada, replay, token esgotado). Quem é parado pelo volume é o rate limit.
+- **Exemplo** com `DEFAULT_PREFIX_SIZE=15`, `STEP=2`, `EVERY=3` e janela de 60 s: as requests 1 a 3 pedem 15 bits, 4 a 6 pedem 17, 7 a 9 pedem 19, e assim por diante até o teto.
+- `CONTRACT_DIFFICULTY_STEP=0` (default) desliga.
+
+Configuração sugerida para o autenticador:
+
+```
+CONTRACT_RATE_LIMIT_WINDOW_SECONDS=60
+CONTRACT_DIFFICULTY_STEP=1
+CONTRACT_DIFFICULTY_EVERY=1     # ou X
+CONTRACT_MAX_USES=1             # cada chamada paga um challenge novo
+CONTRACT_TOKEN_TTL_SECONDS=60
+```
+
+Com `CONTRACT_MAX_USES=1`, cada chamada ao autenticador custa duas requests (a que recebe o 401 com o challenge e a resolvida). As duas contam na janela, então ajuste `EVERY` levando isso em conta.
+
 ## Limitações
 
 - **Token reaproveitado:** o token do App Check é bearer. Se for tirado de um aparelho real, ele gera um uuid válido por `ATTEST_ID_TTL_SECONDS`. A partir daí, esse uuid sofre rate limit, dificuldade e bloqueio como qualquer outro. Para a rota de SMS, considerar limited-use tokens com consumo no backend do Firebase.

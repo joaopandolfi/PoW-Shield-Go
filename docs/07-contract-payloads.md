@@ -194,6 +194,7 @@ Os limites são configuráveis:
 | Dificuldade inicial e quanto ela sobe por punição | `DEFAULT_PREFIX_SIZE`, `PUNISHMENT` |
 | Até onde a dificuldade sobe antes de bloquear | `CONTRACT_MAX_DIFFICULTY` |
 | Requests por uuid em uma janela | `CONTRACT_RATE_LIMIT_REQUESTS`, `CONTRACT_RATE_LIMIT_WINDOW_SECONDS` |
+| Dificuldade subindo a cada X requests na janela | `CONTRACT_DIFFICULTY_STEP` (bits por degrau), `CONTRACT_DIFFICULTY_EVERY` (X), janela `CONTRACT_RATE_LIMIT_WINDOW_SECONDS` |
 
 Fluxo típico do front:
 

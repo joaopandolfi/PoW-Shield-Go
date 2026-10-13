@@ -251,6 +251,21 @@ func contractFlow(t *testing.T, cfg config.Config) contractHarness {
 	cfg.Contract.RequireBinding = false
 	config.Inject(cfg)
 
+	// progressive difficulty: +2 every 2 requests of the id in the window, capped at MaxDifficulty (13)
+	cfg.Contract.DifficultyStep = 2
+	cfg.Contract.DifficultyEvery = 2
+	config.Inject(cfg)
+	busy := uuid.NewString()
+	for i, want := range []int{8, 8, 10, 10, 12, 12, 13, 13} {
+		code, ch := do(sealContract(t, waf, "1:"+busy+":"+now()))
+		expect(fmt.Sprintf("progressive request %d", i+1), code, 401)
+		if ch.Difficulty != want {
+			t.Fatalf("progressive request %d: difficulty %d, want %d", i+1, ch.Difficulty, want)
+		}
+	}
+	cfg.Contract.DifficultyStep = 0
+	config.Inject(cfg)
+
 	return contractHarness{h, func(t *testing.T) *http.Request {
 		r := httptest.NewRequest("GET", "/", nil)
 		r.Header.Set("X-Ctx", sealContract(t, waf, "1:"+uuid.NewString()+":"+now()))

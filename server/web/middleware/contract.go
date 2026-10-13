@@ -120,11 +120,16 @@ func Contract(next func(http.ResponseWriter, *http.Request)) http.HandlerFunc {
 			}
 		}
 
-		if cfg.RateRequests > 0 {
-			count, err := contractCache.Incr(contractKey("l", id, ""), 0, 1, cfg.RateWindow)
+		// requests of this id in the current window: feeds the rate limit and the progressive difficulty
+		inWindow := 0
+		if cfg.RateRequests > 0 || cfg.DifficultyStep > 0 {
+			inWindow, err = contractCache.Incr(contractKey("l", id, ""), 0, 1, cfg.RateWindow)
 			if cacheFailed(w, err) {
 				return
 			}
+		}
+		if cfg.RateRequests > 0 {
+			count := inWindow
 			if count > cfg.RateRequests {
 				metrics.IncRateLimited()
 				if log != nil {
@@ -151,12 +156,12 @@ func Contract(next func(http.ResponseWriter, *http.Request)) http.HandlerFunc {
 			if prefix != "" {
 				contractCache.Delete(contractKey("t", id, prefix)) // replayed token is compromised
 			}
-			issueContractChallenge(w, id, true)
+			issueContractChallenge(w, id, true, inWindow)
 			return
 		}
 
 		if prefix == "" {
-			issueContractChallenge(w, id, false)
+			issueContractChallenge(w, id, false, inWindow)
 			return
 		}
 
@@ -169,7 +174,7 @@ func Contract(next func(http.ResponseWriter, *http.Request)) http.HandlerFunc {
 			if uses > cfg.MaxUses {
 				contractCache.Delete(tokenKey)
 				// only the request that crossed the limit raises difficulty, a parallel burst is punished once
-				issueContractChallenge(w, id, uses == cfg.MaxUses+1)
+				issueContractChallenge(w, id, uses == cfg.MaxUses+1, inWindow)
 				return
 			}
 			next(w, r)
@@ -182,7 +187,7 @@ func Contract(next func(http.ResponseWriter, *http.Request)) http.HandlerFunc {
 			return
 		}
 		if raw == nil {
-			issueContractChallenge(w, id, false)
+			issueContractChallenge(w, id, false, inWindow)
 			return
 		}
 
@@ -197,7 +202,7 @@ func Contract(next func(http.ResponseWriter, *http.Request)) http.HandlerFunc {
 			if log != nil {
 				log.Warn("Contract challenge failed", "client", id)
 			}
-			issueContractChallenge(w, id, true)
+			issueContractChallenge(w, id, true, inWindow)
 			return
 		}
 
@@ -220,7 +225,10 @@ func cacheFailed(w http.ResponseWriter, err error) bool {
 	return true
 }
 
-func issueContractChallenge(w http.ResponseWriter, id string, harder bool) {
+// issueContractChallenge answers 401 with a new challenge. harder applies a punishment (kept for
+// CONTRACT_PENALTY_SECONDS, can block); inWindow adds CONTRACT_DIFFICULTY_STEP per earlier request of
+// the id in the current window (load based, capped at CONTRACT_MAX_DIFFICULTY, never blocks).
+func issueContractChallenge(w http.ResponseWriter, id string, harder bool, inWindow int) {
 	cfg := config.Get().Contract
 	difficultyKey := contractKey("d", id, "")
 
@@ -251,6 +259,11 @@ func issueContractChallenge(w http.ResponseWriter, id string, harder bool) {
 		if raw != nil {
 			difficulty = readRateValue(raw)
 		}
+	}
+
+	if inWindow > 1 && cfg.DifficultyStep > 0 {
+		every := max(cfg.DifficultyEvery, 1)
+		difficulty = min(difficulty+cfg.DifficultyStep*((inWindow-1)/every), cfg.MaxDifficulty)
 	}
 
 	buf := make([]byte, 16)

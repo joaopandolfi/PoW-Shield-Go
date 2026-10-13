@@ -64,6 +64,8 @@ type contract struct {
 	RateRequests    int
 	RateWindow      time.Duration
 	RequireBinding  bool
+	DifficultyStep  int
+	DifficultyEvery int
 }
 
 type logging struct {
@@ -281,7 +283,8 @@ func Load() error {
 			PenaltyTTL:      time.Duration(StrTo[int](getEnvOrDefault("CONTRACT_PENALTY_SECONDS", "3600"))) * time.Second,
 			RateRequests:    StrTo[int](getEnvOrDefault("CONTRACT_RATE_LIMIT_REQUESTS", "120")),
 			RateWindow:      time.Duration(StrTo[int](getEnvOrDefault("CONTRACT_RATE_LIMIT_WINDOW_SECONDS", "60"))) * time.Second,
-			RequireBinding:  StrTo[bool](getEnvOrDefault("CONTRACT_REQUIRE_BINDING", "false")),
+			DifficultyStep:  StrTo[int](getEnvOrDefault("CONTRACT_DIFFICULTY_STEP", "0")),
+			DifficultyEvery: StrTo[int](getEnvOrDefault("CONTRACT_DIFFICULTY_EVERY", "1")),
 		},
 		Attest: attest{
 			Active:        StrTo[bool](getEnvOrDefault("ATTEST_ACTIVE", "false")),

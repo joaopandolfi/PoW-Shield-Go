@@ -94,6 +94,8 @@ See [sprint1.md](sprint1.md) for the full protocol.
 | `CONTRACT_RATE_LIMIT_REQUESTS` | `120` | Requests per client uuid per window, `0` disables |
 | `CONTRACT_RATE_LIMIT_WINDOW_SECONDS` | `60` | Per-uuid rate limit window (fixed) |
 | `CONTRACT_REQUIRE_BINDING` | `false` | Require payload v2 (request hash of method, URI and body); v1 is rejected |
+| `CONTRACT_DIFFICULTY_STEP` | `0` | Progressive difficulty: bits added for every `CONTRACT_DIFFICULTY_EVERY` requests of the same id in the window (`CONTRACT_RATE_LIMIT_WINDOW_SECONDS`); `0` disables. Capped at `CONTRACT_MAX_DIFFICULTY`, never blocks |
+| `CONTRACT_DIFFICULTY_EVERY` | `1` | Requests per difficulty step |
 
 Base difficulty and increment reuse `DEFAULT_PREFIX_SIZE` and `PUNISHMENT`. The server refuses to start if the key cannot be loaded.
 
