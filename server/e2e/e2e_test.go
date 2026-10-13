@@ -13,6 +13,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"pow-shield-go/services/contract"
 	"pow-shield-go/services/utils"
 	"strings"
 	"testing"
@@ -55,8 +56,21 @@ func (c *client) contract(solution string) string {
 	return c.seal(payload)
 }
 
+// bound is a v2 payload: the header only authorizes this method, URI and body
+func (c *client) bound(method, uri, body, solution string) string {
+	payload := fmt.Sprintf("2:%s:%d:%s", c.id, time.Now().Unix(), contract.RequestHash(method, uri, []byte(body)))
+	if solution != "" {
+		payload += ":" + solution
+	}
+	return c.seal(payload)
+}
+
 func (c *client) send(url, value string) (int, string, challenge) {
-	req, _ := http.NewRequest("GET", url+"/api/anything", nil)
+	return c.sendReq("GET", url, "/api/anything", "", value)
+}
+
+func (c *client) sendReq(method, url, uri, reqBody, value string) (int, string, challenge) {
+	req, _ := http.NewRequest(method, url+uri, strings.NewReader(reqBody))
 	if value != "" {
 		req.Header.Set(header, value)
 	}
@@ -160,6 +174,29 @@ func TestContractE2E(t *testing.T) {
 	step("wrong solution past max difficulty", code, 406, body)
 	code, body, _ = c.send(a, c.contract(""))
 	step("blocked on the other instance", code, 406, body)
+
+	// request binding (v2) through the real proxy
+	bc := &client{t: t, waf: waf, id: uuid.NewString()}
+	uri, payload := "/api/orders?page=2", `{"item":42}`
+	code, body, ch = bc.sendReq("POST", a, uri, payload, bc.bound("POST", uri, payload, ""))
+	step("v2 bound, no challenge", code, 401, body)
+	sol := solve(ch)
+	code, body, _ = bc.sendReq("POST", b, uri, payload, bc.bound("POST", uri, payload, sol))
+	step("v2 bound request reaches backend", code, 200, body)
+	code, body, _ = bc.sendReq("POST", a, uri, `{"item":999}`, bc.bound("POST", uri, payload, sol))
+	step("v2 body tampered", code, 406, body)
+	code, body, _ = bc.sendReq("POST", a, "/api/admin", payload, bc.bound("POST", uri, payload, sol))
+	step("v2 path tampered", code, 406, body)
+
+	// rate limit per uuid (CONTRACT_RATE_LIMIT_REQUESTS=20), shared by both instances
+	rl := &client{t: t, waf: waf, id: uuid.NewString()}
+	for i := 1; i <= 20; i++ {
+		if code, body, _ = rl.send(urls[i%2], rl.contract("")); code != 401 {
+			t.Fatalf("uuid rate limit request %d: status %d, want 401 (body %q)", i, code, body)
+		}
+	}
+	code, body, _ = rl.send(a, rl.contract(""))
+	step("uuid over rate limit (21st, across instances)", code, 429, body)
 
 	// another client is unaffected
 	other := &client{t: t, waf: waf, id: uuid.NewString()}

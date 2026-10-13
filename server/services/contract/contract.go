@@ -2,6 +2,8 @@ package contract
 
 import (
 	"bytes"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"io"
 	"os"
@@ -15,17 +17,27 @@ import (
 	"github.com/google/uuid"
 )
 
-// Version is the only contract payload format accepted today
-const Version = "1"
+// Payload versions: v1 "1:<uuid>:<ts>", v2 adds the request binding "2:<uuid>:<ts>:<request hash>".
+// Both may carry a solved challenge at the end: ":<prefix>:<nonce hex>".
+var versionFields = map[string]int{"1": 3, "2": 4}
 
 // maxPayload bounds the decrypted payload, a compressed message cannot inflate past it
 const maxPayload = 512
 
-// Contract is the decrypted header payload: "<version>:<uuid>:<unix_ts>[:<prefix>:<nonce hex>]"
+// Contract is the decrypted header payload
 type Contract struct {
-	ID     string
-	Prefix string
-	Nonce  string
+	ID      string
+	Binding string // hex sha256 of the request (v2), empty on v1
+	Prefix  string
+	Nonce   string
+}
+
+// RequestHash is the v2 binding: hex(sha256(method "\n" request URI "\n" body))
+func RequestHash(method, requestURI string, body []byte) string {
+	h := sha256.New()
+	h.Write([]byte(method + "\n" + requestURI + "\n"))
+	h.Write(body)
+	return hex.EncodeToString(h.Sum(nil))
 }
 
 // Verifier opens the contract header: base64 of an OpenPGP message (binary or armored) encrypted to the WAF key
@@ -91,11 +103,12 @@ func (v *Verifier) Verify(header string, now time.Time) (*Contract, error) {
 	}
 
 	parts := strings.Split(strings.TrimSpace(string(body)), ":")
-	if len(parts) != 3 && len(parts) != 5 {
-		return nil, fmt.Errorf("malformed payload")
-	}
-	if parts[0] != Version {
+	fields, ok := versionFields[parts[0]]
+	if !ok {
 		return nil, fmt.Errorf("unsupported version %q", parts[0])
+	}
+	if len(parts) != fields && len(parts) != fields+2 {
+		return nil, fmt.Errorf("malformed payload")
 	}
 
 	id, err := uuid.Parse(parts[1])
@@ -112,8 +125,14 @@ func (v *Verifier) Verify(header string, now time.Time) (*Contract, error) {
 	}
 
 	c := &Contract{ID: id.String()}
-	if len(parts) == 5 {
-		c.Prefix, c.Nonce = parts[3], parts[4]
+	if fields == 4 {
+		if b, err := hex.DecodeString(parts[3]); err != nil || len(b) != sha256.Size {
+			return nil, fmt.Errorf("invalid request hash")
+		}
+		c.Binding = strings.ToLower(parts[3])
+	}
+	if len(parts) == fields+2 {
+		c.Prefix, c.Nonce = parts[fields], parts[fields+1]
 	}
 	return c, nil
 }

@@ -20,6 +20,7 @@ func checkAtomic(t *testing.T, c Cache) {
 	}
 
 	c.Put("counter", 0, time.Minute)
+	seenIncr := map[int]bool{}
 	c.Put("once", 1, time.Minute)
 	var wg sync.WaitGroup
 	var mu sync.Mutex
@@ -30,8 +31,13 @@ func checkAtomic(t *testing.T, c Cache) {
 			defer wg.Done()
 			v, existed, err := c.IncrIfExists("counter")
 			got, _ := c.GetDel("once")
+			fresh, ierr := c.Incr("fresh", 10, 2, time.Minute)
 			mu.Lock()
 			defer mu.Unlock()
+			if ierr != nil || seenIncr[fresh] || fresh%2 != 0 {
+				t.Errorf("Incr: v=%d err=%v duplicate=%v", fresh, ierr, seenIncr[fresh])
+			}
+			seenIncr[fresh] = true
 			if err != nil || !existed || seen[v] {
 				t.Errorf("incr: v=%d existed=%v err=%v duplicate=%v", v, existed, err, seen[v])
 			}
@@ -48,6 +54,9 @@ func checkAtomic(t *testing.T, c Cache) {
 	if winners != 1 {
 		t.Fatalf("GetDel winners %d, want 1", winners)
 	}
+	if !seenIncr[12] || !seenIncr[10+2*n] {
+		t.Fatalf("Incr from initial 10 by 2 must yield 12..%d", 10+2*n)
+	}
 }
 
 func TestAtomicMemory(t *testing.T) {
@@ -62,5 +71,8 @@ func TestAtomicRedis(t *testing.T) {
 	checkAtomic(t, c)
 	if ttl := mr.TTL("counter"); ttl <= 0 {
 		t.Fatalf("IncrIfExists dropped the TTL: %s", ttl)
+	}
+	if ttl := mr.TTL("fresh"); ttl <= 0 || ttl > time.Minute {
+		t.Fatalf("Incr must set the TTL on creation, got %s", ttl)
 	}
 }

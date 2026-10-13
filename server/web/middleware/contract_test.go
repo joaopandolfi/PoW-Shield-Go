@@ -13,8 +13,10 @@ import (
 	"path/filepath"
 	"pow-shield-go/config"
 	"pow-shield-go/internal/cache"
+	"pow-shield-go/services/contract"
 	"pow-shield-go/services/utils"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -195,6 +197,59 @@ func contractFlow(t *testing.T, cfg config.Config) contractHarness {
 	expect("wrong solution goes past max difficulty", code, 406)
 	code, _ = do(valid(""))
 	expect("blocked client", code, 406)
+
+	// request binding (v2): the header only authorizes the request it was hashed for
+	doReq := func(method, uri, body, header string) (int, contractChallenge) {
+		r := httptest.NewRequest(method, uri, strings.NewReader(body))
+		r.Header.Set("X-Ctx", header)
+		w := httptest.NewRecorder()
+		h(w, r)
+		var c contractChallenge
+		json.Unmarshal(w.Body.Bytes(), &c)
+		return w.Code, c
+	}
+	bound := uuid.NewString()
+	v2 := func(method, uri, body, solution string) string {
+		payload := "2:" + bound + ":" + now() + ":" + contract.RequestHash(method, uri, []byte(body))
+		if solution != "" {
+			payload += ":" + solution
+		}
+		return sealContract(t, waf, payload)
+	}
+	code, ch = doReq("POST", "/api/x?a=1", `{"v":1}`, v2("POST", "/api/x?a=1", `{"v":1}`, ""))
+	expect("v2 bound, no challenge", code, 401)
+	sol := solve(ch.Prefix, ch.Difficulty)
+	code, _ = doReq("POST", "/api/x?a=1", `{"v":1}`, v2("POST", "/api/x?a=1", `{"v":1}`, sol))
+	expect("v2 bound request", code, 200)
+	code, _ = doReq("POST", "/api/x?a=1", `{"v":2}`, v2("POST", "/api/x?a=1", `{"v":1}`, sol))
+	expect("v2 body tampered", code, 406)
+	code, _ = doReq("POST", "/api/y?a=1", `{"v":1}`, v2("POST", "/api/x?a=1", `{"v":1}`, sol))
+	expect("v2 path tampered", code, 406)
+	code, _ = doReq("DELETE", "/api/x?a=1", `{"v":1}`, v2("POST", "/api/x?a=1", `{"v":1}`, sol))
+	expect("v2 method tampered", code, 406)
+	code, _ = do(sealContract(t, waf, "2:"+bound+":"+now()+":nothex"))
+	expect("v2 invalid hash", code, 406)
+
+	// rate limit per uuid and mandatory binding
+	cfg.Contract.RateRequests = 2
+	cfg.Contract.RateWindow = time.Minute
+	cfg.Contract.RequireBinding = true
+	config.Inject(cfg)
+	code, _ = do(valid(""))
+	expect("v1 refused when binding is required", code, 406)
+	limited := uuid.NewString()
+	for i := 1; i <= 3; i++ {
+		payload := "2:" + limited + ":" + now() + ":" + contract.RequestHash("GET", "/", nil)
+		code, _ = do(sealContract(t, waf, payload))
+		want := 401
+		if i == 3 {
+			want = 429
+		}
+		expect(fmt.Sprintf("uuid rate limit request %d", i), code, want)
+	}
+	cfg.Contract.RateRequests = 0
+	cfg.Contract.RequireBinding = false
+	config.Inject(cfg)
 
 	return contractHarness{h, func(t *testing.T) *http.Request {
 		r := httptest.NewRequest("GET", "/", nil)

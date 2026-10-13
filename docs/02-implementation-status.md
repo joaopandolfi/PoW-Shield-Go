@@ -85,6 +85,9 @@ The project is **fully implemented** with all major components present. All crit
 | Contract tests | `server/web/middleware/contract_test.go` | Done | Full flow on memory and Redis (miniredis) |
 | Atomic cache ops | `server/internal/cache/` | Done | `PutIfAbsent`, `IncrIfExists`, `GetDel`, `Ping`; tested with `-race` |
 | E2E | `e2e/run.sh`, `server/e2e/` | Done | Docker stack (2 WAF instances + Redis + http-echo) and Go client acting as the front |
+| Per-uuid rate limit | `server/web/middleware/contract.go` | Done | Sprint 2, atomic fixed window |
+| Request binding (v2) | `server/services/contract/contract.go` | Done | Sprint 2, `sha256(method\nURI\nbody)` |
+| Atomic difficulty | `server/internal/cache/` (`Incr`) | Done | Sprint 2 |
 
 ---
 

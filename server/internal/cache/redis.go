@@ -74,6 +74,16 @@ func (c *redisCache) IncrIfExists(key string) (int, bool, error) {
 	return v, true, nil
 }
 
+var incrWithDefault = redis.NewScript(`if redis.call("EXISTS", KEYS[1]) == 0 then redis.call("SET", KEYS[1], ARGV[1], "PX", ARGV[3]) end return redis.call("INCRBY", KEYS[1], ARGV[2])`)
+
+func (c *redisCache) Incr(key string, initial, delta int, ttl time.Duration) (int, error) {
+	v, err := incrWithDefault.Run(c.ctx, c.client, []string{key}, initial, delta, ttl.Milliseconds()).Int()
+	if err != nil {
+		return 0, fmt.Errorf("incrementing key (%s): %w", key, err)
+	}
+	return v, nil
+}
+
 // GetDel needs redis >= 6.2
 func (c *redisCache) GetDel(key string) (interface{}, error) {
 	val, err := c.client.GetDel(c.ctx, key).Result()

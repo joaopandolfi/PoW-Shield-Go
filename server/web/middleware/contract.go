@@ -1,16 +1,20 @@
 package middleware
 
 import (
+	"bytes"
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
+	"io"
 	"net/http"
 	"pow-shield-go/config"
 	"pow-shield-go/internal/cache"
 	"pow-shield-go/internal/logging"
+	"pow-shield-go/internal/metrics"
 	"pow-shield-go/services/contract"
 	"pow-shield-go/services/utils"
 	"pow-shield-go/web/handler"
+	"strconv"
 	"time"
 )
 
@@ -60,6 +64,24 @@ func Contract(next func(http.ResponseWriter, *http.Request)) http.HandlerFunc {
 			return
 		}
 
+		// binding: the header only authorizes the exact request (method, URI, body) it was made for
+		if c.Binding != "" || cfg.RequireBinding {
+			body, err := io.ReadAll(r.Body)
+			r.Body.Close()
+			if err != nil {
+				blockRequest(w)
+				return
+			}
+			r.Body = io.NopCloser(bytes.NewReader(body))
+			if c.Binding != contract.RequestHash(r.Method, r.URL.RequestURI(), body) {
+				if log != nil {
+					log.Warn("Contract rejected", "ip", handler.IP(r), "client", c.ID, "reason", "request binding missing or mismatch")
+				}
+				blockRequest(w)
+				return
+			}
+		}
+
 		id, prefix, nonceHex := c.ID, c.Prefix, c.Nonce
 		blocked, err := contractCache.Get(contractKey("b", id, ""))
 		if cacheFailed(w, err) {
@@ -71,6 +93,22 @@ func Contract(next func(http.ResponseWriter, *http.Request)) http.HandlerFunc {
 			}
 			blockRequest(w)
 			return
+		}
+
+		if cfg.RateRequests > 0 {
+			count, err := contractCache.Incr(contractKey("l", id, ""), 0, 1, cfg.RateWindow)
+			if cacheFailed(w, err) {
+				return
+			}
+			if count > cfg.RateRequests {
+				metrics.IncRateLimited()
+				if log != nil {
+					log.Warn("Contract rate limit exceeded", "client", id, "count", count, "limit", cfg.RateRequests)
+				}
+				w.Header().Set("Retry-After", strconv.Itoa(int(cfg.RateWindow.Seconds())))
+				handler.RespondDefaultError(w, http.StatusTooManyRequests)
+				return
+			}
 		}
 
 		// replay: PGP encryption is randomized, so the same header twice means a captured request was resent.
@@ -161,17 +199,15 @@ func issueContractChallenge(w http.ResponseWriter, id string, harder bool) {
 	cfg := config.Get().Contract
 	difficultyKey := contractKey("d", id, "")
 
-	difficulty := config.Get().Pow.DefaultPrefixSize
-	raw, err := contractCache.Get(difficultyKey)
-	if cacheFailed(w, err) {
-		return
-	}
-	if raw != nil {
-		difficulty = readRateValue(raw)
-	}
-
+	base := config.Get().Pow.DefaultPrefixSize
+	difficulty := base
 	if harder {
-		difficulty += config.Get().Pow.Punishment
+		// atomic: simultaneous punishments never lose an increment; the penalty window starts at the first raise
+		var err error
+		difficulty, err = contractCache.Incr(difficultyKey, base, config.Get().Pow.Punishment, cfg.PenaltyTTL)
+		if cacheFailed(w, err) {
+			return
+		}
 		if difficulty > cfg.MaxDifficulty {
 			if cacheFailed(w, contractCache.Put(contractKey("b", id, ""), 1, cfg.PenaltyTTL)) {
 				return
@@ -182,8 +218,13 @@ func issueContractChallenge(w http.ResponseWriter, id string, harder bool) {
 			blockRequest(w)
 			return
 		}
-		if cacheFailed(w, contractCache.Put(difficultyKey, difficulty, cfg.PenaltyTTL)) {
+	} else {
+		raw, err := contractCache.Get(difficultyKey)
+		if cacheFailed(w, err) {
 			return
+		}
+		if raw != nil {
+			difficulty = readRateValue(raw)
 		}
 	}
 

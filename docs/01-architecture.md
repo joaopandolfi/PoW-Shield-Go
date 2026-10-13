@@ -173,3 +173,4 @@ make test-e2e                    # docker: 2 WAF instances + Redis + backend, co
 | [06-todo-and-recommendations.md](06-todo-and-recommendations.md) | Roadmap |
 | [07-contract-payloads.md](07-contract-payloads.md) | Contract headers, payloads and responses |
 | [sprint1.md](sprint1.md) | Encrypted contract: design, Redis, e2e, limitations |
+| [sprint2.md](sprint2.md) | Per-uuid rate limit, atomic difficulty, request binding |

@@ -15,6 +15,7 @@ x-contract-env: &contract-env
   PUNISHMENT: "2"
   CONTRACT_MAX_USES: "3"
   CONTRACT_MAX_DIFFICULTY: "18"
+  CONTRACT_RATE_LIMIT_REQUESTS: "20"
 
 services:
   pow-shield:

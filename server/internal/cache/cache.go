@@ -21,6 +21,8 @@ type Cache interface {
 	PutIfAbsent(key string, data interface{}, duration time.Duration) (bool, error)
 	// IncrIfExists atomically adds 1 to an existing integer key, keeping its TTL; existed is false (and nothing is created) when missing
 	IncrIfExists(key string) (value int, existed bool, err error)
+	// Incr atomically creates key with initial (and ttl) when missing, then adds delta; ttl is only set on creation
+	Incr(key string, initial, delta int, ttl time.Duration) (int, error)
 	// GetDel atomically reads and removes key, so only one caller gets the value
 	GetDel(key string) (interface{}, error)
 	Get(key string) (interface{}, error)

@@ -175,6 +175,6 @@ O que o e2e cobre:
 - **Várias instâncias:** com cache em memória, cada instância tem seu próprio estado (replay, tokens, bloqueio). Com várias instâncias, usar Redis.
 - **Replay como assédio:** quem consegue capturar o tráfego (ou seja, já passou do TLS) pode reenviar um header para queimar o token do cliente e subir a dificuldade dele.
 - Quando o token esgota, só a request que cruzou o limite sobe a dificuldade. Uma rajada paralela é punida uma vez só.
-- A dificuldade por cliente ainda é get+put. Em eventos simultâneos (por exemplo, dois replays ao mesmo tempo), um aumento pode se perder. O erro é sempre para menos punição, nunca para menos checagem.
+- ~~A dificuldade por cliente ainda é get+put.~~ Resolvido na [sprint 2](sprint2.md), que também trouxe rate limit por uuid e request binding.
 - Agora toda request grava uma entrada de replay no cache. O limite do cache em memória (`MAX_BUFF_SIZE`) subiu de 150 para 100000. Esse limite não remove entradas válidas: acima dele, cada gravação varre o mapa inteiro só para apagar as expiradas. Com 150, essa varredura acontecia em quase toda request. Para tráfego real, usar Redis.
 - O uuid do cliente não é repassado ao backend protegido.

@@ -167,7 +167,7 @@ Forwards all requests to the protected backend server. Protected by the middlewa
 
 **Middleware Chain**
 
-1. **Contract** - Decrypts the `X-Request-Context` header (OpenPGP, WAF key), checks version/uuid/timestamp, replay, block and the PoW challenge carried inside it
+1. **Contract** - Decrypts the `X-Request-Context` header (OpenPGP, WAF key), checks version/uuid/timestamp, request binding (v2), block, per-uuid rate limit, replay and the PoW challenge carried inside it
 2. **PoW** - Validates session cookie, session store, or header token
 3. **WAF** - Inspects URL, headers, and body against 120 regex rules
 4. **Rate Limit** - Per-IP request window
@@ -176,11 +176,12 @@ Forwards all requests to the protected backend server. Protected by the middlewa
 
 | Status | When |
 |--------|------|
-| `BLOCK_RESPONSE_STATUS` (406) | Missing/invalid header, wrong key, stale timestamp, unknown version, invalid uuid, blocked client |
+| `BLOCK_RESPONSE_STATUS` (406) | Missing/invalid header, wrong key, stale timestamp, unknown version, invalid uuid, request binding mismatch, v1 when binding is required, blocked client |
+| 429 + `Retry-After` | Per-uuid rate limit (`CONTRACT_RATE_LIMIT_*`) |
 | 401 `{"prefix","difficulty"}` | No solved challenge in the payload, token exhausted, wrong solution or replay (the last three with raised difficulty) |
 | 500 | Cache error (fail closed) |
 
-Payload: `<version>:<uuid>:<unix_ts>` or `<version>:<uuid>:<unix_ts>:<prefix>:<nonce_hex>`. Headers, payloads and response bodies in [07-contract-payloads.md](07-contract-payloads.md); design in [sprint1.md](sprint1.md).
+Payload: v1 `1:<uuid>:<unix_ts>[:<prefix>:<nonce_hex>]`, v2 `2:<uuid>:<unix_ts>:<request_hash>[:<prefix>:<nonce_hex>]`. Headers, payloads and response bodies in [07-contract-payloads.md](07-contract-payloads.md); design in [sprint1.md](sprint1.md).
 
 **Upstream**
 

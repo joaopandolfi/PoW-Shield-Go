@@ -52,7 +52,7 @@ make build-front
 ```
 
 ### Encrypted client contract
-Clients send `base64(gpg_encrypt("1:<uuid>:<unix_ts>"))` in `X-Request-Context` and solve a per-client PoW challenge. Enable with `CONTRACT_ACTIVE=true` and `CONTRACT_PRIVATE_KEY_FILE`. See [docs/07-contract-payloads.md](docs/07-contract-payloads.md) for headers and payloads and [docs/sprint1.md](docs/sprint1.md) for the design.
+Clients send `base64(gpg_encrypt("1:<uuid>:<unix_ts>"))` in `X-Request-Context` (or v2 with a request hash binding the header to method, URI and body) and solve a per-client PoW challenge, with a per-uuid rate limit. Enable with `CONTRACT_ACTIVE=true` and `CONTRACT_PRIVATE_KEY_FILE`. See [docs/07-contract-payloads.md](docs/07-contract-payloads.md) for headers and payloads and [docs/sprint1.md](docs/sprint1.md) for the design.
 
 ### Tests
 ```sh

@@ -50,6 +50,9 @@ type contract struct {
 	ChallengeTTL   time.Duration
 	MaxDifficulty  int
 	PenaltyTTL     time.Duration
+	RateRequests   int
+	RateWindow     time.Duration
+	RequireBinding bool
 }
 
 type logging struct {
@@ -265,6 +268,9 @@ func Load() error {
 			ChallengeTTL:   time.Duration(StrTo[int](getEnvOrDefault("CONTRACT_CHALLENGE_TTL_SECONDS", "60"))) * time.Second,
 			MaxDifficulty:  StrTo[int](getEnvOrDefault("CONTRACT_MAX_DIFFICULTY", "28")),
 			PenaltyTTL:     time.Duration(StrTo[int](getEnvOrDefault("CONTRACT_PENALTY_SECONDS", "3600"))) * time.Second,
+			RateRequests:   StrTo[int](getEnvOrDefault("CONTRACT_RATE_LIMIT_REQUESTS", "120")),
+			RateWindow:     time.Duration(StrTo[int](getEnvOrDefault("CONTRACT_RATE_LIMIT_WINDOW_SECONDS", "60"))) * time.Second,
+			RequireBinding: StrTo[bool](getEnvOrDefault("CONTRACT_REQUIRE_BINDING", "false")),
 		},
 		Cache: cache{
 			Redis: redis{
