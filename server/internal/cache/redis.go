@@ -52,6 +52,39 @@ func (c *redisCache) Put(key string, data interface{}, duration time.Duration) e
 	return nil
 }
 
+func (c *redisCache) PutIfAbsent(key string, data interface{}, duration time.Duration) (bool, error) {
+	ok, err := c.client.SetNX(c.ctx, key, data, duration).Result()
+	if err != nil {
+		return false, fmt.Errorf("putting data on key (%s): %w", key, err)
+	}
+	return ok, nil
+}
+
+// plain INCR would create a missing key without TTL
+var incrIfExists = redis.NewScript(`if redis.call("EXISTS", KEYS[1]) == 1 then return redis.call("INCR", KEYS[1]) end return -1`)
+
+func (c *redisCache) IncrIfExists(key string) (int, bool, error) {
+	v, err := incrIfExists.Run(c.ctx, c.client, []string{key}).Int()
+	if err != nil {
+		return 0, false, fmt.Errorf("incrementing key (%s): %w", key, err)
+	}
+	if v < 0 {
+		return 0, false, nil
+	}
+	return v, true, nil
+}
+
+// GetDel needs redis >= 6.2
+func (c *redisCache) GetDel(key string) (interface{}, error) {
+	val, err := c.client.GetDel(c.ctx, key).Result()
+	if err == redis.Nil {
+		return nil, nil
+	} else if err != nil {
+		return nil, fmt.Errorf("getdel from %s : %w", key, err)
+	}
+	return val, nil
+}
+
 func (c *redisCache) Get(key string) (interface{}, error) {
 	val, err := c.client.Get(c.ctx, key).Result()
 	if err == redis.Nil {

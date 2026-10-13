@@ -18,6 +18,7 @@ PoW Shield is a DDoS protection solution for the OSI application layer, function
 - **Cookie/Session/Header Transport**: Flexible session token transport mechanisms
 - **SSL/TLS Support**: Optional TLS termination
 - **IP Tolerance System**: Tracks failed attempts per IP and applies progressive punishment (difficulty increase)
+- **Encrypted Client Contract**: Clients send `gpg_encrypt(version:uuid:timestamp)` in a header; the WAF decrypts it, rejects stale or replayed requests and gates each client id with a PoW challenge whose difficulty grows on abuse (see [sprint1.md](sprint1.md))
 - **Graceful Shutdown**: Proper cleanup on SIGINT/SIGTERM
 
 ## Architecture
@@ -76,6 +77,7 @@ server/
     middleware/
       waf.go                     # WAF inspection middleware
       pow.go                     # PoW session validation middleware
+      contract.go                # Encrypted contract + per-client challenge middleware
       identificator.go           # Client IP hashing middleware
       commons.go                 # Shared helpers (cleanAll, blockRequest)
       middleware.go              # Init functions

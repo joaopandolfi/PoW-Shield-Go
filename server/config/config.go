@@ -35,6 +35,21 @@ type Config struct {
 	Session session
 	Static  static
 	Waf     waf
+
+	Contract contract
+}
+
+type contract struct {
+	Active         bool
+	PrivateKeyFile string
+	Passphrase     string
+	Header         string
+	MaxAge         time.Duration
+	MaxUses        int
+	TokenTTL       time.Duration
+	ChallengeTTL   time.Duration
+	MaxDifficulty  int
+	PenaltyTTL     time.Duration
 }
 
 type logging struct {
@@ -238,6 +253,18 @@ func Load() error {
 			BlockTypes:           StrTo[[]string](getEnvOrDefault("WAF_BLOCK_TYPES", "[]")),
 			RawWafs:              loadWafRules(getEnvOrDefault("WAF_RULES_FILE", "wafRules.json")),
 			RawWafTypes:          loadWafRules(getEnvOrDefault("WAF_TYPES_FILE", "wafTypes.json")),
+		},
+		Contract: contract{
+			Active:         StrTo[bool](getEnvOrDefault("CONTRACT_ACTIVE", "false")),
+			PrivateKeyFile: getEnvOrDefault("CONTRACT_PRIVATE_KEY_FILE", "waf.key.asc"),
+			Passphrase:     getEnvOrDefault("CONTRACT_PRIVATE_KEY_PASSPHRASE", ""),
+			Header:         getEnvOrDefault("CONTRACT_HEADER", "X-Request-Context"),
+			MaxAge:         time.Duration(StrTo[int](getEnvOrDefault("CONTRACT_MAX_AGE_SECONDS", "30"))) * time.Second,
+			MaxUses:        StrTo[int](getEnvOrDefault("CONTRACT_MAX_USES", "100")),
+			TokenTTL:       time.Duration(StrTo[int](getEnvOrDefault("CONTRACT_TOKEN_TTL_SECONDS", "600"))) * time.Second,
+			ChallengeTTL:   time.Duration(StrTo[int](getEnvOrDefault("CONTRACT_CHALLENGE_TTL_SECONDS", "60"))) * time.Second,
+			MaxDifficulty:  StrTo[int](getEnvOrDefault("CONTRACT_MAX_DIFFICULTY", "28")),
+			PenaltyTTL:     time.Duration(StrTo[int](getEnvOrDefault("CONTRACT_PENALTY_SECONDS", "3600"))) * time.Second,
 		},
 		Cache: cache{
 			Redis: redis{

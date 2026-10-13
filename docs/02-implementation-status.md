@@ -76,6 +76,15 @@ The project is **fully implemented** with all major components present. All crit
 | Proxy routes | `server/web/controllers/proxy/routers.go` | Done | WAF + PoW middleware chain |
 | Admin controller | `server/web/controllers/admin/admin.go` | Done | SPA serving via embed.FS, login/stats API, auth check |
 
+### Contract Module (Sprint 1)
+
+| Component | File | Status | Notes |
+|-----------|------|--------|-------|
+| Contract verifier | `server/services/contract/contract.go` | Done | OpenPGP decrypt (binary or armored), version/uuid/timestamp checks |
+| Contract middleware | `server/web/middleware/contract.go` | Done | Challenge, token uses, replay, difficulty, block; fail closed on cache errors |
+| Contract tests | `server/web/middleware/contract_test.go` | Done | Full flow on memory and Redis (miniredis) |
+| Atomic cache ops | `server/internal/cache/` | Done | `PutIfAbsent`, `IncrIfExists`, `GetDel`, `Ping`; tested with `-race` |
+
 ---
 
 ## 2. Client (Frontend)

@@ -2,6 +2,7 @@ package cache
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"time"
 
@@ -45,7 +46,51 @@ func initializeMemory(ctx context.Context, tick time.Duration) Cache {
 func (c *memCache) Put(key string, data interface{}, duration time.Duration) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	c.put(key, data, duration)
+	return nil
+}
 
+func (c *memCache) PutIfAbsent(key string, data interface{}, duration time.Duration) (bool, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if val, ok := c.buff[key]; ok && val.validAt.After(time.Now()) {
+		return false, nil
+	}
+	c.put(key, data, duration)
+	return true, nil
+}
+
+func (c *memCache) IncrIfExists(key string) (int, bool, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	val, ok := c.buff[key]
+	if !ok || !val.validAt.After(time.Now()) {
+		return 0, false, nil
+	}
+	n, ok := val.value.(int)
+	if !ok {
+		return 0, false, fmt.Errorf("key (%s) is not an int", key)
+	}
+	val.value = n + 1
+	return n + 1, true, nil
+}
+
+func (c *memCache) GetDel(key string) (interface{}, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	val, ok := c.buff[key]
+	if !ok {
+		return nil, nil
+	}
+	delete(c.buff, key)
+	if !val.validAt.After(time.Now()) {
+		return nil, nil
+	}
+	return val.value, nil
+}
+
+// put expects c.mu held
+func (c *memCache) put(key string, data interface{}, duration time.Duration) {
 	for len(c.buff) > MAX_BUFF_SIZE {
 		oldestKey := ""
 		oldestTime := time.Now()
@@ -66,7 +111,6 @@ func (c *memCache) Put(key string, data interface{}, duration time.Duration) err
 		value:   data,
 		validAt: time.Now().Add(duration),
 	}
-	return nil
 }
 
 func (c *memCache) Get(key string) (interface{}, error) {

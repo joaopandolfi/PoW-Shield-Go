@@ -163,12 +163,24 @@ curl -X POST http://localhost:5656/pow/ \
 
 ### `ANY /*`
 
-Forwards all requests to the protected backend server. Protected by WAF and PoW middleware chain.
+Forwards all requests to the protected backend server. Protected by the middleware chain below (each one only when enabled).
 
 **Middleware Chain**
 
-1. **WAF** - Inspects URL, headers, and body against 120 regex rules
+1. **Contract** - Decrypts the `X-Request-Context` header (OpenPGP, WAF key), checks version/uuid/timestamp, replay, block and the PoW challenge carried inside it
 2. **PoW** - Validates session cookie, session store, or header token
+3. **WAF** - Inspects URL, headers, and body against 120 regex rules
+4. **Rate Limit** - Per-IP request window
+
+**Contract responses**
+
+| Status | When |
+|--------|------|
+| `BLOCK_RESPONSE_STATUS` (406) | Missing/invalid header, wrong key, stale timestamp, unknown version, invalid uuid, blocked client |
+| 401 `{"prefix","difficulty"}` | No solved challenge in the payload, token exhausted, wrong solution or replay (the last three with raised difficulty) |
+| 500 | Cache error (fail closed) |
+
+Payload: `<version>:<uuid>:<unix_ts>` or `<version>:<uuid>:<unix_ts>:<prefix>:<nonce_hex>`. Full protocol in [sprint1.md](sprint1.md).
 
 **Upstream**
 

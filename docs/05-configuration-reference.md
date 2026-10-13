@@ -75,6 +75,27 @@ PROTECTED_SERVER_HEADERS=["X-Forwarded-For":"127.0.0.1","X-Real-IP":"192.168.1.1
 
 ---
 
+## Contract Configuration (encrypted client id)
+
+See [sprint1.md](sprint1.md) for the full protocol.
+
+| Variable | Default | Description |
+|----------|---------|-------|
+| `CONTRACT_ACTIVE` | `false` | Enable the contract middleware on the proxy |
+| `CONTRACT_PRIVATE_KEY_FILE` | `waf.key.asc` | WAF armored OpenPGP private key, used to decrypt the header |
+| `CONTRACT_PRIVATE_KEY_PASSPHRASE` | (empty) | Passphrase of the private key, if protected |
+| `CONTRACT_HEADER` | `X-Request-Context` | Header carrying `base64(gpg_encrypt(payload))` |
+| `CONTRACT_MAX_AGE_SECONDS` | `30` | Max clock difference accepted for the payload timestamp |
+| `CONTRACT_MAX_USES` | `100` | Requests allowed per solved challenge |
+| `CONTRACT_TOKEN_TTL_SECONDS` | `600` | Lifetime of a solved challenge, counted from the solution |
+| `CONTRACT_CHALLENGE_TTL_SECONDS` | `60` | Time to solve an issued challenge |
+| `CONTRACT_MAX_DIFFICULTY` | `28` | Above this difficulty the client id is blocked |
+| `CONTRACT_PENALTY_SECONDS` | `3600` | Block duration and how long the raised difficulty is remembered |
+
+Base difficulty and increment reuse `DEFAULT_PREFIX_SIZE` and `PUNISHMENT`. The server refuses to start if the key cannot be loaded.
+
+---
+
 ## Redis Cache Configuration
 
 | Variable | Default | Description |
@@ -83,6 +104,8 @@ PROTECTED_SERVER_HEADERS=["X-Forwarded-For":"127.0.0.1","X-Real-IP":"192.168.1.1
 | `REDIS_HOST` | `localhost:6379` | Redis server address |
 | `REDIS_PASS` | (empty) | Redis password |
 | `REDIS_DB` | `1` | Redis database number |
+
+Requires Redis 6.2+ (`GETDEL`). The server pings the cache on startup and refuses to start if it is unreachable. Contract state uses atomic operations (`SET NX`, Lua `EXISTS`+`INCR`, `GETDEL`), so it is safe across multiple instances.
 
 ---
 

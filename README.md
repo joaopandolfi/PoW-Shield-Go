@@ -13,6 +13,7 @@ PoW Shield is a DDoS protection solution for the OSI application layer, function
 - Proxy Functionality
 - PoW Implementation
 - WAF Implementation
+- Encrypted client contract (OpenPGP) with per-client PoW challenge, replay protection and progressive difficulty ([docs/sprint1.md](docs/sprint1.md))
 - Multi-Instance Syncing (Redis)
 - SSL Support
 
