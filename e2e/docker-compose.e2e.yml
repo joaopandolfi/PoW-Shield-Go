@@ -1,0 +1,38 @@
+# Contract e2e stack: two WAF instances sharing redis, in front of http-echo.
+# Used by e2e/run.sh on top of the root docker-compose.yml.
+x-contract-env: &contract-env
+  PORT: "5656"
+  PROTECTED_SERVER_HOST: "http://backend:3001"
+  SERVE_STATIC: "false"
+  WAF_RULES_FILE: "/app/wafRules.json"
+  WAF_TYPES_FILE: "/app/wafTypes.json"
+  REDIS_USE: "true"
+  REDIS_HOST: "redis:6379"
+  POW_ACTIVE: "false"
+  CONTRACT_ACTIVE: "true"
+  CONTRACT_PRIVATE_KEY_FILE: "/keys/waf.key.asc"
+  DEFAULT_PREFIX_SIZE: "12"
+  PUNISHMENT: "2"
+  CONTRACT_MAX_USES: "3"
+  CONTRACT_MAX_DIFFICULTY: "18"
+
+services:
+  pow-shield:
+    image: pow-shield-go:e2e
+    environment: *contract-env
+    volumes:
+      - ./e2e/.keys:/keys:ro
+
+  pow-shield-2:
+    image: pow-shield-go:e2e
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment: *contract-env
+    volumes:
+      - ./e2e/.keys:/keys:ro
+    ports:
+      - "5657:5656"
+    depends_on:
+      - backend
+      - redis

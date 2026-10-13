@@ -84,6 +84,7 @@ The project is **fully implemented** with all major components present. All crit
 | Contract middleware | `server/web/middleware/contract.go` | Done | Challenge, token uses, replay, difficulty, block; fail closed on cache errors |
 | Contract tests | `server/web/middleware/contract_test.go` | Done | Full flow on memory and Redis (miniredis) |
 | Atomic cache ops | `server/internal/cache/` | Done | `PutIfAbsent`, `IncrIfExists`, `GetDel`, `Ping`; tested with `-race` |
+| E2E | `e2e/run.sh`, `server/e2e/` | Done | Docker stack (2 WAF instances + Redis + http-echo) and Go client acting as the front |
 
 ---
 

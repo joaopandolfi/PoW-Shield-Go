@@ -130,6 +130,29 @@ Com `REDIS_USE=true`, todo o estado do contrato fica no Redis e é compartilhado
 
 O middleware roda antes de PoW/WAF/RateLimit na cadeia do proxy. Com o contrato ligado, normalmente `POW_ACTIVE=false`, já que o fluxo de cookie/sessão do PoW antigo fica redundante.
 
+## Teste e2e
+
+```sh
+./e2e/run.sh            # KEEP_UP=1 ./e2e/run.sh deixa a stack no ar
+```
+
+O script:
+
+1. Gera um par de chaves descartável do WAF (curve25519, mesmo padrão do openpgp.js) em `e2e/.keys/`, que está no `.gitignore`.
+2. Sobe via Docker duas instâncias do WAF (portas 5656 e 5657) com Redis compartilhado, na frente do backend http-echo. O arquivo usado é `e2e/docker-compose.e2e.yml` por cima do `docker-compose.yml`.
+3. Roda `server/e2e/e2e_test.go` (build tag `e2e`), que se comporta como o front: `base64(gpg_encrypt(payload))` com a chave pública.
+4. Derruba a stack.
+
+O que o e2e cobre:
+
+- Header ausente, em texto aberto, com timestamp velho ou com versão desconhecida: 406.
+- Sem challenge: 401. A solução chega no backend (200, "protected backend").
+- Replay numa instância diferente da que viu o header: 401, com a dificuldade subindo de 12 para 14.
+- Token compartilhado entre as instâncias: 3 usos alternando a/b, e o 4º esgota (dificuldade 16).
+- Solução errada sobe a dificuldade para 18. A seguinte passa de `CONTRACT_MAX_DIFFICULTY` e bloqueia o id, e o bloqueio vale na outra instância.
+- Outro cliente não é afetado e continua na dificuldade base.
+- Implícito: o header base64 passa pelas 120 regras do WAF sem falso positivo.
+
 ## Arquivos
 
 - `server/services/contract/contract.go`: carrega a chave do WAF, decripta e valida o payload.
@@ -140,6 +163,7 @@ O middleware roda antes de PoW/WAF/RateLimit na cadeia do proxy. Com o contrato 
 - `server/main.go`: falha no startup se o cache não responder.
 - `docker-compose.yml`: serviço `redis`.
 - Dependência de teste: `github.com/alicebob/miniredis/v2`.
+- `e2e/run.sh`, `e2e/docker-compose.e2e.yml`, `server/e2e/keygen/` (gera a chave descartável), `server/e2e/e2e_test.go`.
 - Dependência nova: `github.com/ProtonMail/go-crypto` (OpenPGP mantido; `x/crypto/openpgp` está deprecated). `cloudflare/circl` fixado em v1.6.1 (versões anteriores têm vulnerabilidade conhecida).
 
 ## Limitações conhecidas
