@@ -50,25 +50,11 @@ func RateLimit(next func(http.ResponseWriter, *http.Request)) http.HandlerFunc {
 		log := logging.Get()
 		ip := powHandler.IP(r)
 		key := rateLimitKey(ip)
-		count := 0
-
-		val, err := rateCache.Get(key)
+		// atomic fixed window: TTL set on the first request only, shared across instances with redis
+		count, err := rateCache.Incr(key, 0, 1, time.Duration(cfg.WindowSeconds)*time.Second)
 		if err != nil {
 			if log != nil {
-				log.Error("Rate limit cache get error", "error", err.Error())
-			}
-			powHandler.RespondDefaultError(w, http.StatusInternalServerError)
-			return
-		}
-		if val != nil {
-			count = readRateValue(val)
-		}
-
-		count++
-		window := time.Duration(cfg.WindowSeconds) * time.Second
-		if err := rateCache.Put(key, count, window); err != nil {
-			if log != nil {
-				log.Error("Rate limit cache put error", "error", err.Error())
+				log.Error("Rate limit cache error", "error", err.Error())
 			}
 			powHandler.RespondDefaultError(w, http.StatusInternalServerError)
 			return

@@ -10,6 +10,12 @@ Continuação da [sprint 1](sprint1.md). Os formatos de header e payload estão 
 - Contador atômico no cache (`Incr`, chave `ct:l:<uuid>:`). O TTL é definido só na criação, então a janela não é empurrada por requests novas. Com Redis, o limite vale somado entre todas as instâncias.
 - O rate limit por IP (`RATE_LIMIT_*`) continua existindo e roda depois do contrato.
 
+## 1b. Rate limit por IP atômico
+
+- O limiter por IP também passou a usar o `Incr` atômico (chave `rate:<ip>`). Uma rajada paralela deixa passar exatamente `RATE_LIMIT_REQUESTS` requests. O teste `TestRateLimitAtomic` dispara 80 requests simultâneas com limite 50: passam 50 e 30 recebem 429. Com o código antigo, passavam as 80.
+- **Mudança de comportamento:** antes, cada request regravava a chave e renovava o TTL. Com tráfego constante a janela nunca fechava, e o contador só zerava depois de `RATE_LIMIT_WINDOW_SECONDS` sem nenhuma request. Agora é janela fixa: o contador zera `RATE_LIMIT_WINDOW_SECONDS` depois da primeira request da janela, o que bate com o `Retry-After` enviado.
+- Erro de cache no limiter por IP responde 500, como antes (falha fechada).
+
 ## 2. Dificuldade atômica por cliente
 
 - O aumento da dificuldade virou uma única operação atômica: `Incr(ct:d:<uuid>, base, PUNISHMENT, CONTRACT_PENALTY_SECONDS)`. No Redis é um script Lua (`SET ... PX` se a chave não existe, depois `INCRBY`); na memória, usa o lock do cache.
@@ -82,4 +88,9 @@ decripta/valida payload -> binding (v2 ou obrigatório) -> bloqueio -> rate limi
 
 - O binding não cobre headers da request (por exemplo `Authorization` ou `Content-Type`), só método, URI e body.
 - Bodies grandes são lidos inteiros na memória para o hash. O WAF de regras já fazia isso; se virar problema, colocar um limite de tamanho do body.
-- O rate limit é de janela fixa: na virada da janela, um cliente pode fazer até 2× o limite em pouco tempo.
+- Os dois rate limits (por uuid e por IP) são de janela fixa: na virada da janela, um cliente pode fazer até 2× o limite em pouco tempo.
+
+## Correções de teste
+
+- `cache.Initialize` travava na 3ª chamada no mesmo processo, porque mandava num canal com buffer 2 que ninguém lia. Agora o envio não bloqueia, e um novo `Initialize` com Redis reconecta no servidor configurado. Só afetava testes repetidos (`-count=N`); em produção o `Initialize` roda uma vez.
+- Os testes de cache e de rate limit limpam o cache em memória (singleton) no início, então passam com `-race -count=3`.

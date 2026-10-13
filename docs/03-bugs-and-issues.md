@@ -180,5 +180,7 @@
 | Parallel burst over the use limit raised difficulty once per request | Only the request that crosses the limit raises it |
 | Server started with Redis unreachable | Startup `PING`, process exits on failure |
 | `e2e/run.sh` left containers up (cleanup ran from the wrong directory) | Cleanup `cd`s back to the repo root |
+| Per-IP rate limiter was get+put: a parallel burst of 80 with limit 50 let all 80 through, and every request refreshed the TTL so a constant stream never reset the window | Atomic `Incr`, fixed window (sprint 2) |
+| `cache.Initialize` blocked on the 3rd call in one process (send on a full buffered channel) | Non-blocking send; Redis client recreated on each `Initialize` |
 
-Known remaining: the per-client difficulty is still get+put, so simultaneous events may lose one increment (errs toward less punishment, never fewer checks).
+The per-client difficulty is atomic since sprint 2 (`Incr`).

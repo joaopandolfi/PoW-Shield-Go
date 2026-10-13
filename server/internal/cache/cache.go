@@ -34,6 +34,7 @@ type Cache interface {
 
 func Initialize(ctx context.Context, tick time.Duration) Cache {
 	if config.Get().Cache.Redis.Use {
+		rcache = nil // a new Initialize always connects to the configured server
 		cacheInstance = GetRedis(ctx)
 	} else {
 		cacheInstance = initializeMemory(ctx, tick)
@@ -50,7 +51,11 @@ func AddInitializedListenner(l chan bool) {
 }
 
 func initialized() {
-	InitializedChan <- true
+	// non blocking: nobody reads it after the buffer fills, a repeated Initialize must not hang
+	select {
+	case InitializedChan <- true:
+	default:
+	}
 	for _, c := range waitListenners {
 		c <- true
 	}

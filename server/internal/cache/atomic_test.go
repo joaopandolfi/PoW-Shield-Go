@@ -12,6 +12,7 @@ import (
 // checkAtomic hammers IncrIfExists and GetDel from many goroutines: no lost increment, a single winner on GetDel
 func checkAtomic(t *testing.T, c Cache) {
 	const n = 100
+	c.Flush() // memory cache is a singleton, start clean on repeated runs
 	if _, existed, err := c.IncrIfExists("missing"); err != nil || existed {
 		t.Fatalf("missing key: existed=%v err=%v", existed, err)
 	}
