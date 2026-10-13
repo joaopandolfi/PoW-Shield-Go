@@ -21,6 +21,7 @@ x-contract-env: &contract-env
   ATTEST_JWKS_URL: "http://host.docker.internal:18080"
   FIREBASE_PROJECT_NUMBER: "123456789"
   FIREBASE_APP_IDS: '["1:123456789:android:abc"]'
+  ATTEST_JWT_KEY_FILE: "/keys/id.key.pem"
 
 services:
   pow-shield:

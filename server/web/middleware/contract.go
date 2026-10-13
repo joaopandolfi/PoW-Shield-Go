@@ -12,6 +12,7 @@ import (
 	"pow-shield-go/internal/logging"
 	"pow-shield-go/internal/metrics"
 	"pow-shield-go/services/contract"
+	"pow-shield-go/services/idtoken"
 	"pow-shield-go/services/utils"
 	"pow-shield-go/web/handler"
 	"strconv"
@@ -22,6 +23,7 @@ const contractCachePrefix = "ct:"
 
 var contractCache cache.Cache
 var contractVerifier *contract.Verifier
+var idSigner *idtoken.Signer
 
 func InitContract() {
 	cfg := config.Get().Contract
@@ -35,17 +37,34 @@ func InitContract() {
 		// fail fast: an empty keyring would block every request silently
 		panic("loading contract keys: " + err.Error())
 	}
+
+	// with attestation the payload carries the WAF signed id token instead of a uuid:
+	// the id is valid when the token verifies, no lookup
+	if config.Get().Attest.Active {
+		signer, err := idtoken.Load(config.Get().Attest.JWTKeyFile)
+		if err != nil {
+			panic("loading id token key: " + err.Error())
+		}
+		idSigner = signer
+		v.ID = func(field string, now time.Time) (string, error) {
+			claims, err := signer.Verify(field, now)
+			if err != nil {
+				return "", err
+			}
+			return claims.Sub, nil
+		}
+	}
 	contractVerifier = v
+}
+
+// IDSigner signs the id tokens handed out by the attest handshake (nil without attestation)
+func IDSigner() *idtoken.Signer {
+	return idSigner
 }
 
 // ContractPublicKey is the armored WAF public key handed to attested devices
 func ContractPublicKey() string {
 	return contractVerifier.PublicKey()
-}
-
-// AttestedKey is the cache key marking a client id issued by the attest endpoint
-func AttestedKey(id string) string {
-	return contractKey("a", id, "")
 }
 
 type contractChallenge struct {
@@ -103,21 +122,6 @@ func Contract(next func(http.ResponseWriter, *http.Request)) http.HandlerFunc {
 			}
 			blockRequest(w)
 			return
-		}
-
-		// with attestation on, only ids issued to devices that passed App Check (Play Integrity / App Attest) get in
-		if config.Get().Attest.Active {
-			attested, err := contractCache.Get(AttestedKey(id))
-			if cacheFailed(w, err) {
-				return
-			}
-			if attested == nil {
-				if log != nil {
-					log.Warn("Contract rejected", "ip", handler.IP(r), "client", id, "reason", "client id not issued by attest")
-				}
-				blockRequest(w)
-				return
-			}
 		}
 
 		// requests of this id in the current window: feeds the rate limit and the progressive difficulty

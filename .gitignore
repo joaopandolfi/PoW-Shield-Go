@@ -4,3 +4,4 @@ TODO.md
 server/pow-shield-go
 *.key.asc
 e2e/.keys/
+*.pem

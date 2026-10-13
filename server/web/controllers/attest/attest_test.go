@@ -3,7 +3,11 @@ package attest
 import (
 	"bytes"
 	"context"
+	"crypto/ed25519"
+	"crypto/rand"
+	"crypto/x509"
 	"encoding/json"
+	"encoding/pem"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -12,6 +16,7 @@ import (
 	"pow-shield-go/config"
 	"pow-shield-go/internal/cache"
 	"pow-shield-go/services/appcheck/appchecktest"
+	"pow-shield-go/services/idtoken"
 	"pow-shield-go/services/utils"
 	"pow-shield-go/web/middleware"
 	"pow-shield-go/web/server"
@@ -39,6 +44,11 @@ func TestHandshake(t *testing.T) {
 	keyFile := filepath.Join(t.TempDir(), "waf.asc")
 	os.WriteFile(keyFile, priv.Bytes(), 0o600)
 
+	_, idKey, _ := ed25519.GenerateKey(rand.Reader)
+	der, _ := x509.MarshalPKCS8PrivateKey(idKey)
+	idKeyFile := filepath.Join(t.TempDir(), "id.key.pem")
+	os.WriteFile(idKeyFile, pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: der}), 0o600)
+
 	cfg := config.Config{}
 	cfg.Reply.BlockStatus = http.StatusNotAcceptable
 	cfg.Pow.DefaultPrefixSize = 8
@@ -59,6 +69,7 @@ func TestHandshake(t *testing.T) {
 	cfg.Attest.AppIDs = []string{firebase.App}
 	cfg.Attest.JWKSURL = firebase.Server.URL
 	cfg.Attest.IDTTL = time.Hour
+	cfg.Attest.JWTKeyFile = idKeyFile
 	config.Inject(cfg)
 	cache.Initialize(context.Background(), time.Minute)
 	middleware.InitContract()
@@ -93,12 +104,12 @@ func TestHandshake(t *testing.T) {
 	token := firebase.Sign(t, nil)
 	code, first := handshake(token)
 	expect("attested device", code, 200)
-	if _, err := uuid.Parse(first.ID); err != nil || !strings.Contains(first.Key, "BEGIN PGP PUBLIC KEY BLOCK") || first.Exp <= time.Now().Unix() {
+	if _, err := uuid.Parse(first.ID); err != nil || first.Token == "" || !strings.Contains(first.Key, "BEGIN PGP PUBLIC KEY BLOCK") || first.Exp <= time.Now().Unix() {
 		t.Fatalf("handshake response %+v", first)
 	}
 	code, again := handshake(token)
 	expect("same token again", code, 200)
-	if again.ID != first.ID || again.Exp != first.Exp {
+	if again.ID != first.ID || again.Token != first.Token || again.Exp != first.Exp {
 		t.Fatalf("same App Check token must return the same id: %s vs %s", again.ID, first.ID)
 	}
 	code, second := handshake(firebase.Sign(t, func(_, c map[string]any) { c["iat"] = time.Now().Unix() + 1 }))
@@ -107,26 +118,33 @@ func TestHandshake(t *testing.T) {
 		t.Fatal("a new App Check token must get a new id")
 	}
 
-	// the contract only accepts ids issued here, encrypted with the key handed out
+	// the contract only accepts id tokens signed here, encrypted with the key handed out
 	keyring, err := openpgp.ReadArmoredKeyRing(strings.NewReader(first.Key))
 	if err != nil {
 		t.Fatal(err)
 	}
-	seal := func(id string) string {
+	seal := func(idField string) string {
 		var out bytes.Buffer
 		w, _ := openpgp.Encrypt(&out, keyring, nil, nil, nil)
-		fmt.Fprintf(w, "1:%s:%d", id, time.Now().Unix())
+		fmt.Fprintf(w, "1:%s:%d", idField, time.Now().Unix())
 		w.Close()
 		return utils.ToBase64(out.Bytes())
 	}
 	contract := middleware.Contract(func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(http.StatusOK) })
-	send := func(id string) int {
+	send := func(idField string) int {
 		req := httptest.NewRequest("GET", "/api", nil)
-		req.Header.Set("X-Ctx", seal(id))
+		req.Header.Set("X-Ctx", seal(idField))
 		w := httptest.NewRecorder()
 		contract(w, req)
 		return w.Code
 	}
-	expect("attested id reaches the challenge", send(first.ID), 401)
+	expect("id token reaches the challenge", send(first.Token), 401)
+	expect("bare uuid, even the issued one", send(first.ID), 406)
 	expect("self-made uuid", send(uuid.NewString()), 406)
+
+	_, otherKey, _ := ed25519.GenerateKey(rand.Reader)
+	forged, _ := idtoken.New(otherKey).Sign(idtoken.Claims{Sub: uuid.NewString(), Exp: time.Now().Add(time.Hour).Unix()})
+	expect("id token signed by another key", send(forged), 406)
+	expired, _ := middleware.IDSigner().Sign(idtoken.Claims{Sub: first.ID, Exp: time.Now().Add(-time.Second).Unix()})
+	expect("expired id token", send(expired), 406)
 }

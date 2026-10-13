@@ -171,11 +171,11 @@ Enabled with `ATTEST_ACTIVE=true`. Hands the WAF public key and a client id to d
 
 | Status | Body | When |
 |--------|------|------|
-| 200 | `{"key":"<armored public key>","id":"<uuid>","exp":<unix>}` | Valid token; the same token always returns the same id |
+| 200 | `{"key":"<armored public key>","id":"<uuid>","token":"<id token>","exp":<unix>}` | Valid token; the same App Check token always returns the same id token |
 | 406 | `BLOCK_RESPONSE_BODY` | Missing/invalid/expired token, wrong project or app |
 | 503 | `{"code":14,...}` | Firebase keys unavailable and nothing cached |
 
-With attestation on, the contract rejects (406) any client id not issued here. Details in [sprint3.md](sprint3.md).
+With attestation on, the id field of the contract payload must be the id token (EdDSA JWT signed by the WAF, verified without lookups); anything else gets 406. Details in [sprint3.md](sprint3.md).
 
 ---
 
@@ -196,7 +196,7 @@ Forwards all requests to the protected backend server. Protected by the middlewa
 
 | Status | When |
 |--------|------|
-| `BLOCK_RESPONSE_STATUS` (406) | Missing/invalid header, wrong key, stale timestamp, unknown version, invalid uuid, request binding mismatch, v1 when binding is required, client id not attested (when `ATTEST_ACTIVE`), blocked client |
+| `BLOCK_RESPONSE_STATUS` (406) | Missing/invalid header, wrong key, stale timestamp, unknown version, invalid uuid, request binding mismatch, v1 when binding is required, id field not a valid id token (when `ATTEST_ACTIVE`), blocked client |
 | 429 + `Retry-After` | Per-uuid rate limit (`CONTRACT_RATE_LIMIT_*`) |
 | 401 `{"prefix","difficulty"}` | No solved challenge in the payload, token exhausted, wrong solution or replay (the last three with raised difficulty) |
 | 500 | Cache error (fail closed) |

@@ -89,7 +89,8 @@ The project is **fully implemented** with all major components present. All crit
 | Request binding (v2) | `server/services/contract/contract.go` | Done | Sprint 2, `sha256(method\nURI\nbody)` |
 | Atomic difficulty | `server/internal/cache/` (`Incr`) | Done | Sprint 2 |
 | App Check verifier | `server/services/appcheck/appcheck.go` | Done | Sprint 3, RS256 + cached JWKS, fake issuer in `appchecktest` |
-| Attest handshake | `server/web/controllers/attest/attest.go` | Done | Sprint 3, issues WAF key + attested client id |
+| Attest handshake | `server/web/controllers/attest/attest.go` | Done | Sprint 3, issues WAF key + id token |
+| Id token | `server/services/idtoken/idtoken.go` | Done | Sprint 3, EdDSA JWT, stateless validity, `sub` = client id |
 
 ---
 

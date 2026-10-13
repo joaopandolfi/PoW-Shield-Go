@@ -1,7 +1,12 @@
-// keygen writes a throwaway WAF key pair for the e2e stack: waf.key.asc (private) and waf.pub.asc (public)
+// keygen writes throwaway keys for the e2e stack: waf.key.asc / waf.pub.asc (OpenPGP contract key)
+// and id.key.pem (Ed25519, signs the id tokens issued by the attest handshake)
 package main
 
 import (
+	"crypto/ed25519"
+	"crypto/rand"
+	"crypto/x509"
+	"encoding/pem"
 	"fmt"
 	"io"
 	"os"
@@ -43,8 +48,23 @@ func main() {
 	if err == nil {
 		err = write(filepath.Join(dir, "waf.pub.asc"), openpgp.PublicKeyType, e.Serialize)
 	}
+	if err == nil {
+		err = writeIDKey(filepath.Join(dir, "id.key.pem"))
+	}
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
+}
+
+func writeIDKey(path string) error {
+	_, key, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		return err
+	}
+	der, err := x509.MarshalPKCS8PrivateKey(key)
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(path, pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: der}), 0o644)
 }

@@ -27,9 +27,10 @@ import (
 const header = "X-Request-Context"
 
 type attestResponse struct {
-	Key string `json:"key"`
-	ID  string `json:"id"`
-	Exp int64  `json:"exp"`
+	Key   string `json:"key"`
+	ID    string `json:"id"`
+	Token string `json:"token"`
+	Exp   int64  `json:"exp"`
 }
 
 type challenge struct {
@@ -146,7 +147,7 @@ func TestContractE2E(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		return &client{t: t, waf: waf, id: r.ID}
+		return &client{t: t, waf: waf, id: r.Token} // the id field of the payload carries the id token
 	}
 
 	code, body, _ := handshake(a, "")
@@ -154,7 +155,7 @@ func TestContractE2E(t *testing.T) {
 	code, body, _ = handshake(b, firebase.Sign(t, func(_, c map[string]any) { c["sub"] = "1:123456789:android:other" }))
 	step("handshake with token of another app", code, 406, body)
 	c := attested(a)
-	t.Logf("ok  %-45s %s", "handshake issued id", c.id)
+	t.Logf("ok  %-45s %d bytes", "handshake issued id token", len(c.id))
 
 	forger := &client{t: t, waf: c.waf, id: uuid.NewString()}
 	code, body, _ = forger.send(b, forger.contract(""))

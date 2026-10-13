@@ -6,31 +6,30 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
-	"fmt"
 	"net/http"
 	"pow-shield-go/config"
 	"pow-shield-go/internal/cache"
 	"pow-shield-go/internal/logging"
 	"pow-shield-go/internal/metrics"
 	"pow-shield-go/services/appcheck"
+	"pow-shield-go/services/idtoken"
 	"pow-shield-go/web/controllers"
 	"pow-shield-go/web/handler"
 	"pow-shield-go/web/middleware"
 	"pow-shield-go/web/server"
-	"strconv"
-	"strings"
 	"time"
 
 	"github.com/google/uuid"
 )
 
-// tokenCachePrefix maps an App Check token to the id it already got
+// tokenCachePrefix maps an App Check token to the id token it already got
 const tokenCachePrefix = "ct:h:"
 
 type response struct {
-	Key string `json:"key"` // armored WAF public key
-	ID  string `json:"id"`  // client uuid for the contract header
-	Exp int64  `json:"exp"` // unix seconds, attest again before it
+	Key   string `json:"key"`   // armored WAF public key
+	ID    string `json:"id"`    // client uuid (the sub of token)
+	Token string `json:"token"` // WAF signed id token, goes in the id field of the contract payload
+	Exp   int64  `json:"exp"`   // unix seconds, attest again before it
 }
 
 type controller struct {
@@ -77,46 +76,49 @@ func (c *controller) handshake(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// one id per App Check token: a token lifted from a real device cannot mint ids in a loop
-	sum := sha256.Sum256([]byte(raw))
-	tokenKey := tokenCachePrefix + hex.EncodeToString(sum[:])
-	issued := response{ID: uuid.NewString(), Exp: now.Add(cfg.IDTTL).Unix()}
-
-	fresh, err := c.cache.PutIfAbsent(tokenKey, issued.ID+"|"+strconv.FormatInt(issued.Exp, 10), token.ExpiresAt.Sub(now))
+	signed, err := middleware.IDSigner().Sign(idtoken.Claims{
+		Sub: uuid.NewString(),
+		App: token.AppID,
+		Iat: now.Unix(),
+		Exp: now.Add(cfg.IDTTL).Unix(),
+	})
 	if err != nil {
 		c.cacheError(w, err)
 		return
 	}
-	if fresh {
-		if err := c.cache.Put(middleware.AttestedKey(issued.ID), token.AppID, cfg.IDTTL); err != nil {
-			c.cacheError(w, err)
-			return
-		}
-	} else {
+
+	// one id per App Check token: a token lifted from a real device cannot mint ids in a loop.
+	// The only state is at issuance; the id token itself is verified without lookups.
+	sum := sha256.Sum256([]byte(raw))
+	tokenKey := tokenCachePrefix + hex.EncodeToString(sum[:])
+	// kept while both are valid, so a repeated handshake never returns an expired id token
+	fresh, err := c.cache.PutIfAbsent(tokenKey, signed, min(token.ExpiresAt.Sub(now), cfg.IDTTL))
+	if err != nil {
+		c.cacheError(w, err)
+		return
+	}
+	if !fresh {
 		prev, err := c.cache.Get(tokenKey)
 		if err != nil {
 			c.cacheError(w, err)
 			return
 		}
-		if issued, err = parseIssued(prev); err != nil {
-			c.cacheError(w, err)
-			return
-		}
+		signed, _ = prev.(string)
 	}
 
-	issued.Key = middleware.ContractPublicKey()
+	claims, err := middleware.IDSigner().Verify(signed, now)
+	if err != nil {
+		c.cacheError(w, err)
+		return
+	}
+	issued := response{
+		Key:   middleware.ContractPublicKey(),
+		ID:    claims.Sub,
+		Token: signed,
+		Exp:   claims.Exp,
+	}
 	w.Header().Set("Cache-Control", "no-store")
 	handler.RespondJson(w, issued, http.StatusOK)
-}
-
-func parseIssued(raw interface{}) (response, error) {
-	s, _ := raw.(string)
-	id, exp, ok := strings.Cut(s, "|")
-	n, err := strconv.ParseInt(exp, 10, 64)
-	if !ok || err != nil {
-		return response{}, fmt.Errorf("issued id entry %q", s)
-	}
-	return response{ID: id, Exp: n}, nil
 }
 
 func (c *controller) cacheError(w http.ResponseWriter, err error) {

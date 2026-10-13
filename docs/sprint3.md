@@ -11,7 +11,9 @@ No ataque de SMS pumping de 07/10, um script fora do app gerou requests válidas
 
 ## Solução
 
-O app não traz mais a chave. Ele recebe a chave e um uuid do WAF num **handshake**, que só responde a aparelhos aprovados pelo **Firebase App Check**: Play Integrity no Android, App Attest/DeviceCheck no iOS. Com `ATTEST_ACTIVE=true`, o contrato **só aceita uuids emitidos pelo handshake**. Um uuid inventado recebe 406, mesmo cifrado com a chave certa.
+O app não traz mais a chave. Ele recebe a chave e um **id token** (JWT assinado pelo WAF, com o uuid no `sub`) num **handshake**, que só responde a aparelhos aprovados pelo **Firebase App Check**: Play Integrity no Android, App Attest/DeviceCheck no iOS.
+
+Com `ATTEST_ACTIVE=true`, o campo de id do payload do contrato passa a ser esse JWT. O WAF valida assinatura e `exp`, sem consultar tabela, e usa o `sub` como id do cliente. Um uuid solto, mesmo o emitido e cifrado com a chave certa, recebe 406.
 
 ```
 app                                   Firebase                     WAF
@@ -19,9 +21,9 @@ app                                   Firebase                     WAF
  |<-------- App Check token (JWT) ------|                            |
  | POST /v1/handshake                                                |
  |   X-Firebase-AppCheck: <token> ---------------------------------->| verifica o JWT (JWKS do Firebase)
- |<----------------------------------- {"key","id","exp"} ----------| registra ct:a:<id> por ATTEST_ID_TTL_SECONDS
- | guarda key e id só em memória                                     |
- | X-Request-Context: enc_key("2:<id>:<ts>:<hash>[:<prefix>:<nonce>]") -> contrato: id precisa estar em ct:a:
+ |<---------------------------- {"key","id","token","exp"} ---------| assina o id token (Ed25519)
+ | guarda key e token só em memória                                  |
+ | X-Request-Context: enc_key("2:<token>:<ts>:<hash>[:<prefix>:<nonce>]") -> contrato verifica o token, id = sub
 ```
 
 ## Endpoint
@@ -31,7 +33,7 @@ app                                   Firebase                     WAF
 | | |
 |---|---|
 | Header | `ATTEST_HEADER` (default `X-Firebase-AppCheck`): token do Firebase App Check |
-| 200 | `{"key":"<armored PGP public key>","id":"<uuid>","exp":<unix>}` com `Cache-Control: no-store` |
+| 200 | `{"key":"<armored PGP public key>","id":"<uuid>","token":"<id token>","exp":<unix>}` com `Cache-Control: no-store` |
 | 406 | Token ausente, inválido, expirado, de outro projeto ou de app não permitido |
 | 503 | Não foi possível buscar as chaves do Firebase e não há cache |
 | 500 | Erro de cache |
@@ -48,9 +50,27 @@ app                                   Firebase                     WAF
   - `exp` no futuro;
   - `sub` (id do app) dentro de `FIREBASE_APP_IDS` (lista vazia aceita qualquer app do projeto).
 
-**Um uuid por token:** o hash do token App Check fica guardado até o token expirar (`ct:h:<sha256>`). Repetir o mesmo token devolve o mesmo uuid. Um token tirado de um aparelho real não serve para gerar uuids em loop; para ter um uuid novo, é preciso um token novo, o que exige uma nova atestação.
+**Um id por token App Check:** o hash do token App Check fica guardado (`ct:h:<sha256>`, valor = o id token emitido) enquanto o token do App Check e o id token forem ambos válidos. Repetir o mesmo token devolve o mesmo id token. Um token tirado de um aparelho real não serve para gerar ids em loop. Esse é o único estado do fluxo, e só existe na emissão.
 
-**Validade do uuid:** `ATTEST_ID_TTL_SECONDS` (default 24 h). O app deve refazer o handshake antes de `exp`. Depois disso, o contrato responde 406.
+## Id token (JWT)
+
+```
+header : {"alg":"EdDSA","typ":"JWT","kid":"<8 bytes do sha256 da chave pública>"}
+claims : {"iss":"pow-shield","sub":"<uuid>","app":"<Firebase app id>","iat":<unix>,"exp":<unix>}
+```
+
+- Assinado com Ed25519 (`ATTEST_JWT_KEY_FILE`, PEM PKCS#8). Todas as instâncias precisam da mesma chave.
+- Cerca de 320 bytes. O limite do payload decriptado subiu de 512 para 1024 bytes.
+- Base64url separado por `.`, sem `:`, então cabe no campo de id do payload sem mudar o formato (v1 e v2).
+- **Validação no contrato, sem estado:**
+  - `alg` precisa ser `EdDSA` e o `kid` precisa ser o da chave atual;
+  - assinatura válida;
+  - `iss` igual a `pow-shield`;
+  - `exp` no futuro;
+  - `sub` precisa ser um uuid.
+- **O que continua com estado** (no cache, com chave pelo `sub`): rate limit por id, dificuldade progressiva, punições e bloqueio. O bloqueio também é a forma de invalidar um id antes do `exp`.
+- **Validade:** `ATTEST_ID_TTL_SECONDS` (default 24 h). O app deve refazer o handshake antes de `exp`; depois disso, o contrato responde 406.
+- **Gerar a chave:** `openssl genpkey -algorithm ed25519 -out id.key.pem`. Os arquivos `*.pem` de chave ficam fora do git, assim como `*.key.asc`.
 
 ## Uso no Flutter
 
@@ -63,35 +83,38 @@ await FirebaseAppCheck.instance.activate(
 final token = await FirebaseAppCheck.instance.getToken();
 final resp = await http.post(Uri.parse('$base/v1/handshake'),
     headers: {'X-Firebase-AppCheck': token!});
-final hs = jsonDecode(resp.body);   // {key, id, exp}: manter só em memória
-// cifrar o contrato com hs['key'] e usar hs['id'] como uuid
+final hs = jsonDecode(resp.body);   // {key, id, token, exp}: manter só em memória
+// cifrar o contrato com hs['key'] e colocar hs['token'] no campo de id do payload:
+// "2:${hs['token']}:<ts>:<request_hash>[:<prefix>:<nonce>]"
 ```
 
 ## Configuração
 
 | Env | Default | Descrição |
 |---|---|---|
-| `ATTEST_ACTIVE` | `false` | Liga o handshake e passa a exigir uuid atestado no contrato. Exige `CONTRACT_ACTIVE=true` e `FIREBASE_PROJECT_NUMBER` |
+| `ATTEST_ACTIVE` | `false` | Liga o handshake e passa a exigir o id token no campo de id do contrato. Exige `CONTRACT_ACTIVE=true` e `FIREBASE_PROJECT_NUMBER` |
 | `ATTEST_PATH` | `/v1/handshake` | Path do endpoint |
 | `ATTEST_HEADER` | `X-Firebase-AppCheck` | Header com o token do App Check |
 | `FIREBASE_PROJECT_NUMBER` | — | Número (não o id) do projeto Firebase |
 | `FIREBASE_APP_IDS` | `[]` | JSON com os ids de app aceitos, ex. `["1:123:android:abc","1:123:ios:def"]`. Para aceitar só Android/Play Integrity, liste só o app Android |
 | `ATTEST_JWKS_URL` | `https://firebaseappcheck.googleapis.com/v1/jwks` | Só muda em teste |
-| `ATTEST_ID_TTL_SECONDS` | `86400` | Validade do uuid emitido |
+| `ATTEST_ID_TTL_SECONDS` | `86400` | Validade (`exp`) do id token |
+| `ATTEST_JWT_KEY_FILE` | `id.key.pem` | Chave Ed25519 (PEM PKCS#8) que assina os id tokens |
 
-Chaves no Redis: `ct:a:<uuid>` (uuid atestado, valor = app id) e `ct:h:<sha256 do token>` (`uuid|exp` emitido para aquele token).
+Chave no Redis: `ct:h:<sha256 do token App Check>`, com o id token emitido para aquele token.
 
 ## Testes
 
 - `services/appcheck`: token válido; rejeita lixo, `alg: none`, HS256, assinatura de outra chave, `kid` desconhecido, token expirado, issuer errado, projeto errado e app não permitido. Também confere que `kid` desconhecido não dispara fetch a cada request e que JWKS fora do ar resulta em `ErrUnavailable`.
 - `web/controllers/attest`: handshake completo com um Firebase falso (`services/appcheck/appchecktest`):
-  - mesmo token devolve o mesmo uuid; token novo gera uuid novo;
-  - a chave devolvida cifra um contrato aceito;
-  - uuid inventado recebe 406.
+  - mesmo token devolve o mesmo id token; token novo gera id novo;
+  - a chave devolvida cifra um contrato aceito com o id token;
+  - uuid solto (inclusive o emitido), uuid inventado, id token assinado por outra chave e id token expirado recebem 406.
+- `services/idtoken`: assinatura e verificação. Rejeita outra chave, token expirado, `sub` que não é uuid, claims trocadas, token sem assinatura e uuid puro.
 - E2E (`make test-e2e`): o teste sobe um JWKS falso na porta 18080 do host, que os containers acessam via `host.docker.internal`.
   - Todos os clientes passam pelo handshake.
   - Handshake sem token, ou com token de outro app, recebe 406.
-  - Uuid inventado com a chave certa recebe 406.
+  - Uuid inventado com a chave certa recebe 406; todos os clientes usam o id token no payload.
   - Todo o fluxo das sprints 1 e 2 roda com uuids atestados.
 
 ## Dificuldade progressiva por janela

@@ -21,8 +21,9 @@ import (
 // Both may carry a solved challenge at the end: ":<prefix>:<nonce hex>".
 var versionFields = map[string]int{"1": 3, "2": 4}
 
-// maxPayload bounds the decrypted payload, a compressed message cannot inflate past it
-const maxPayload = 512
+// maxPayload bounds the decrypted payload, a compressed message cannot inflate past it.
+// Room for an id token (~250 bytes) in place of the uuid.
+const maxPayload = 1024
 
 // Contract is the decrypted header payload
 type Contract struct {
@@ -45,6 +46,18 @@ type Verifier struct {
 	keyring   openpgp.EntityList
 	maxAge    time.Duration
 	publicKey string
+
+	// ID turns the id field of the payload into the client id. Default: the field must be a uuid.
+	// With attestation the field is a WAF signed id token and ID returns its sub.
+	ID func(field string, now time.Time) (string, error)
+}
+
+func uuidID(field string, _ time.Time) (string, error) {
+	id, err := uuid.Parse(field)
+	if err != nil {
+		return "", fmt.Errorf("invalid uuid")
+	}
+	return id.String(), nil
 }
 
 // PublicKey is the armored public part of the WAF key, what clients encrypt to
@@ -87,7 +100,7 @@ func Load(privateKeyFile, passphrase string, maxAge time.Duration) (*Verifier, e
 		return nil, err
 	}
 
-	return &Verifier{keyring: keyring, maxAge: maxAge, publicKey: pub.String()}, nil
+	return &Verifier{keyring: keyring, maxAge: maxAge, publicKey: pub.String(), ID: uuidID}, nil
 }
 
 // Verify decrypts the header and checks version, uuid and timestamp
@@ -131,9 +144,9 @@ func (v *Verifier) Verify(header string, now time.Time) (*Contract, error) {
 		return nil, fmt.Errorf("malformed payload")
 	}
 
-	id, err := uuid.Parse(parts[1])
+	id, err := v.ID(parts[1], now)
 	if err != nil {
-		return nil, fmt.Errorf("invalid uuid")
+		return nil, err
 	}
 
 	ts, err := strconv.ParseInt(parts[2], 10, 64)
@@ -144,7 +157,7 @@ func (v *Verifier) Verify(header string, now time.Time) (*Contract, error) {
 		return nil, fmt.Errorf("stale timestamp, age %s", age)
 	}
 
-	c := &Contract{ID: id.String()}
+	c := &Contract{ID: id}
 	if fields == 4 {
 		if b, err := hex.DecodeString(parts[3]); err != nil || len(b) != sha256.Size {
 			return nil, fmt.Errorf("invalid request hash")

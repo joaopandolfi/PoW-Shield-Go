@@ -68,6 +68,8 @@ server/
   services/
     contract/
       contract.go                # WAF key loading, header decrypt, payload validation
+    idtoken/
+      idtoken.go                 # Id token (EdDSA JWT) issued at the handshake, sub = client id
     appcheck/
       appcheck.go                # Firebase App Check JWT verification (RS256, cached JWKS)
       appchecktest/firebase.go   # Fake App Check issuer for tests

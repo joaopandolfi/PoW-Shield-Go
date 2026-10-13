@@ -48,6 +48,7 @@ type attest struct {
 	AppIDs        []string
 	JWKSURL       string
 	IDTTL         time.Duration
+	JWTKeyFile    string
 }
 
 type contract struct {
@@ -294,6 +295,7 @@ func Load() error {
 			AppIDs:        StrTo[[]string](getEnvOrDefault("FIREBASE_APP_IDS", "[]")),
 			JWKSURL:       getEnvOrDefault("ATTEST_JWKS_URL", "https://firebaseappcheck.googleapis.com/v1/jwks"),
 			IDTTL:         time.Duration(StrTo[int](getEnvOrDefault("ATTEST_ID_TTL_SECONDS", "86400"))) * time.Second,
+			JWTKeyFile:    getEnvOrDefault("ATTEST_JWT_KEY_FILE", "id.key.pem"),
 		},
 		Cache: cache{
 			Redis: redis{
