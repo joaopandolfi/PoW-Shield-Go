@@ -49,6 +49,9 @@ func configInit(ctx context.Context) error {
 
 	tickMemoryGarbageCollector := time.Second * 45
 	cache.Initialize(ctx, tickMemoryGarbageCollector)
+	if err := cache.Ping(ctx); err != nil {
+		return fmt.Errorf("connecting to cache: %w", err)
+	}
 	return nil
 }
 

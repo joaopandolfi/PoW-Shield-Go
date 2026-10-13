@@ -13,6 +13,7 @@ PoW Shield is a DDoS protection solution for the OSI application layer, function
 - Proxy Functionality
 - PoW Implementation
 - WAF Implementation
+- Encrypted client contract (OpenPGP) with per-client PoW challenge, replay protection and progressive difficulty ([docs/sprint1.md](docs/sprint1.md))
 - Multi-Instance Syncing (Redis)
 - SSL Support
 
@@ -48,6 +49,15 @@ make check-vuln
 ```sh
 make build-front-tools
 make build-front
+```
+
+### Encrypted client contract
+Clients send `base64(gpg_encrypt("1:<uuid>:<unix_ts>"))` in `X-Request-Context` (or v2 with a request hash binding the header to method, URI and body) and solve a per-client PoW challenge, with a per-uuid rate limit. With `ATTEST_ACTIVE=true` the key and the client id come from a handshake that only answers devices passing Firebase App Check (Play Integrity / App Attest) ([docs/sprint3.md](docs/sprint3.md)). Enable with `CONTRACT_ACTIVE=true` and `CONTRACT_PRIVATE_KEY_FILE`. See [docs/07-contract-payloads.md](docs/07-contract-payloads.md) for headers and payloads and [docs/sprint1.md](docs/sprint1.md) for the design.
+
+### Tests
+```sh
+make test-backend
+make test-e2e        # docker: 2 WAF instances + Redis + backend
 ```
 
 ### Simple test

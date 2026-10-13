@@ -6,7 +6,8 @@ import (
 	"time"
 )
 
-const MAX_BUFF_SIZE = 150
+// ponytail: past this size every Put scans the map dropping expired entries (valid ones are never evicted); use Redis for real traffic
+const MAX_BUFF_SIZE = 100_000
 
 var cacheInstance Cache
 
@@ -16,6 +17,14 @@ var waitListenners []chan bool
 
 type Cache interface {
 	Put(key string, data interface{}, duration time.Duration) error
+	// PutIfAbsent stores only when key is missing, atomically; returns false when it already existed
+	PutIfAbsent(key string, data interface{}, duration time.Duration) (bool, error)
+	// IncrIfExists atomically adds 1 to an existing integer key, keeping its TTL; existed is false (and nothing is created) when missing
+	IncrIfExists(key string) (value int, existed bool, err error)
+	// Incr atomically creates key with initial (and ttl) when missing, then adds delta; ttl is only set on creation
+	Incr(key string, initial, delta int, ttl time.Duration) (int, error)
+	// GetDel atomically reads and removes key, so only one caller gets the value
+	GetDel(key string) (interface{}, error)
 	Get(key string) (interface{}, error)
 	Delete(key string) error
 	Size() int
@@ -25,6 +34,7 @@ type Cache interface {
 
 func Initialize(ctx context.Context, tick time.Duration) Cache {
 	if config.Get().Cache.Redis.Use {
+		rcache = nil // a new Initialize always connects to the configured server
 		cacheInstance = GetRedis(ctx)
 	} else {
 		cacheInstance = initializeMemory(ctx, tick)
@@ -41,11 +51,23 @@ func AddInitializedListenner(l chan bool) {
 }
 
 func initialized() {
-	InitializedChan <- true
+	// non blocking: nobody reads it after the buffer fills, a repeated Initialize must not hang
+	select {
+	case InitializedChan <- true:
+	default:
+	}
 	for _, c := range waitListenners {
 		c <- true
 	}
 	waitListenners = nil
+}
+
+// Ping checks the backend is reachable, memory is always up
+func Ping(ctx context.Context) error {
+	if r, ok := cacheInstance.(*redisCache); ok {
+		return r.client.Ping(ctx).Err()
+	}
+	return nil
 }
 
 func Get() Cache {

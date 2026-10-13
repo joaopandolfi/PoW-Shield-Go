@@ -35,6 +35,37 @@ type Config struct {
 	Session session
 	Static  static
 	Waf     waf
+
+	Contract contract
+	Attest   attest
+}
+
+type attest struct {
+	Active        bool
+	Path          string
+	Header        string
+	ProjectNumber string
+	AppIDs        []string
+	JWKSURL       string
+	IDTTL         time.Duration
+}
+
+type contract struct {
+	Active          bool
+	PrivateKeyFile  string
+	Passphrase      string
+	Header          string
+	MaxAge          time.Duration
+	MaxUses         int
+	TokenTTL        time.Duration
+	ChallengeTTL    time.Duration
+	MaxDifficulty   int
+	PenaltyTTL      time.Duration
+	RateRequests    int
+	RateWindow      time.Duration
+	RequireBinding  bool
+	DifficultyStep  int
+	DifficultyEvery int
 }
 
 type logging struct {
@@ -239,6 +270,31 @@ func Load() error {
 			RawWafs:              loadWafRules(getEnvOrDefault("WAF_RULES_FILE", "wafRules.json")),
 			RawWafTypes:          loadWafRules(getEnvOrDefault("WAF_TYPES_FILE", "wafTypes.json")),
 		},
+		Contract: contract{
+			Active:          StrTo[bool](getEnvOrDefault("CONTRACT_ACTIVE", "false")),
+			PrivateKeyFile:  getEnvOrDefault("CONTRACT_PRIVATE_KEY_FILE", "waf.key.asc"),
+			Passphrase:      getEnvOrDefault("CONTRACT_PRIVATE_KEY_PASSPHRASE", ""),
+			Header:          getEnvOrDefault("CONTRACT_HEADER", "X-Request-Context"),
+			MaxAge:          time.Duration(StrTo[int](getEnvOrDefault("CONTRACT_MAX_AGE_SECONDS", "30"))) * time.Second,
+			MaxUses:         StrTo[int](getEnvOrDefault("CONTRACT_MAX_USES", "100")),
+			TokenTTL:        time.Duration(StrTo[int](getEnvOrDefault("CONTRACT_TOKEN_TTL_SECONDS", "600"))) * time.Second,
+			ChallengeTTL:    time.Duration(StrTo[int](getEnvOrDefault("CONTRACT_CHALLENGE_TTL_SECONDS", "60"))) * time.Second,
+			MaxDifficulty:   StrTo[int](getEnvOrDefault("CONTRACT_MAX_DIFFICULTY", "28")),
+			PenaltyTTL:      time.Duration(StrTo[int](getEnvOrDefault("CONTRACT_PENALTY_SECONDS", "3600"))) * time.Second,
+			RateRequests:    StrTo[int](getEnvOrDefault("CONTRACT_RATE_LIMIT_REQUESTS", "120")),
+			RateWindow:      time.Duration(StrTo[int](getEnvOrDefault("CONTRACT_RATE_LIMIT_WINDOW_SECONDS", "60"))) * time.Second,
+			DifficultyStep:  StrTo[int](getEnvOrDefault("CONTRACT_DIFFICULTY_STEP", "0")),
+			DifficultyEvery: StrTo[int](getEnvOrDefault("CONTRACT_DIFFICULTY_EVERY", "1")),
+		},
+		Attest: attest{
+			Active:        StrTo[bool](getEnvOrDefault("ATTEST_ACTIVE", "false")),
+			Path:          getEnvOrDefault("ATTEST_PATH", "/v1/handshake"),
+			Header:        getEnvOrDefault("ATTEST_HEADER", "X-Firebase-AppCheck"),
+			ProjectNumber: getEnvOrDefault("FIREBASE_PROJECT_NUMBER", ""),
+			AppIDs:        StrTo[[]string](getEnvOrDefault("FIREBASE_APP_IDS", "[]")),
+			JWKSURL:       getEnvOrDefault("ATTEST_JWKS_URL", "https://firebaseappcheck.googleapis.com/v1/jwks"),
+			IDTTL:         time.Duration(StrTo[int](getEnvOrDefault("ATTEST_ID_TTL_SECONDS", "86400"))) * time.Second,
+		},
 		Cache: cache{
 			Redis: redis{
 				Use:      StrTo[bool](getEnvOrDefault("REDIS_USE", "false")),
@@ -263,6 +319,10 @@ func Load() error {
 
 	cfg.Session.Store.Options = cfg.Session.Options
 	cfg.Session.Fstore.MaxLength(0)
+
+	if cfg.Attest.Active && (!cfg.Contract.Active || cfg.Attest.ProjectNumber == "") {
+		return fmt.Errorf("ATTEST_ACTIVE needs CONTRACT_ACTIVE=true and FIREBASE_PROJECT_NUMBER")
+	}
 
 	if !cfg.Pow.UseCookie && !cfg.Pow.UseSession && !cfg.Pow.UseHeader && cfg.Pow.Active {
 		return fmt.Errorf("to use PoW protection you need to setup USE_COOKIE,USE_SESSION or USE_HEADER (both can be true)")

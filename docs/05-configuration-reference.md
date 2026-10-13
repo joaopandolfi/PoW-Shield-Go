@@ -75,6 +75,48 @@ PROTECTED_SERVER_HEADERS=["X-Forwarded-For":"127.0.0.1","X-Real-IP":"192.168.1.1
 
 ---
 
+## Contract Configuration (encrypted client id)
+
+See [sprint1.md](sprint1.md) for the full protocol.
+
+| Variable | Default | Description |
+|----------|---------|-------|
+| `CONTRACT_ACTIVE` | `false` | Enable the contract middleware on the proxy |
+| `CONTRACT_PRIVATE_KEY_FILE` | `waf.key.asc` | WAF armored OpenPGP private key, used to decrypt the header |
+| `CONTRACT_PRIVATE_KEY_PASSPHRASE` | (empty) | Passphrase of the private key, if protected |
+| `CONTRACT_HEADER` | `X-Request-Context` | Header carrying `base64(gpg_encrypt(payload))` |
+| `CONTRACT_MAX_AGE_SECONDS` | `30` | Max clock difference accepted for the payload timestamp |
+| `CONTRACT_MAX_USES` | `100` | Requests allowed per solved challenge |
+| `CONTRACT_TOKEN_TTL_SECONDS` | `600` | Lifetime of a solved challenge, counted from the solution |
+| `CONTRACT_CHALLENGE_TTL_SECONDS` | `60` | Time to solve an issued challenge |
+| `CONTRACT_MAX_DIFFICULTY` | `28` | Above this difficulty the client id is blocked |
+| `CONTRACT_PENALTY_SECONDS` | `3600` | Block duration and how long the raised difficulty is remembered (counted from the first raise) |
+| `CONTRACT_RATE_LIMIT_REQUESTS` | `120` | Requests per client uuid per window, `0` disables |
+| `CONTRACT_RATE_LIMIT_WINDOW_SECONDS` | `60` | Per-uuid rate limit window (fixed) |
+| `CONTRACT_REQUIRE_BINDING` | `false` | Require payload v2 (request hash of method, URI and body); v1 is rejected |
+| `CONTRACT_DIFFICULTY_STEP` | `0` | Progressive difficulty: bits added for every `CONTRACT_DIFFICULTY_EVERY` requests of the same id in the window (`CONTRACT_RATE_LIMIT_WINDOW_SECONDS`); `0` disables. Capped at `CONTRACT_MAX_DIFFICULTY`, never blocks |
+| `CONTRACT_DIFFICULTY_EVERY` | `1` | Requests per difficulty step |
+
+Base difficulty and increment reuse `DEFAULT_PREFIX_SIZE` and `PUNISHMENT`. The server refuses to start if the key cannot be loaded.
+
+---
+
+## Attest Configuration (Firebase App Check handshake)
+
+See [sprint3.md](sprint3.md).
+
+| Variable | Default | Description |
+|----------|---------|-------|
+| `ATTEST_ACTIVE` | `false` | Enable the handshake endpoint; the contract then only accepts client ids issued by it. Requires `CONTRACT_ACTIVE=true` and `FIREBASE_PROJECT_NUMBER` |
+| `ATTEST_PATH` | `/v1/handshake` | Handshake path (POST) |
+| `ATTEST_HEADER` | `X-Firebase-AppCheck` | Header carrying the App Check token |
+| `FIREBASE_PROJECT_NUMBER` | (empty) | Firebase project number |
+| `FIREBASE_APP_IDS` | `[]` | JSON array of accepted Firebase app ids, empty accepts any app of the project |
+| `ATTEST_JWKS_URL` | `https://firebaseappcheck.googleapis.com/v1/jwks` | App Check signing keys (override only in tests) |
+| `ATTEST_ID_TTL_SECONDS` | `86400` | Lifetime of an issued client id |
+
+---
+
 ## Redis Cache Configuration
 
 | Variable | Default | Description |
@@ -83,6 +125,8 @@ PROTECTED_SERVER_HEADERS=["X-Forwarded-For":"127.0.0.1","X-Real-IP":"192.168.1.1
 | `REDIS_HOST` | `localhost:6379` | Redis server address |
 | `REDIS_PASS` | (empty) | Redis password |
 | `REDIS_DB` | `1` | Redis database number |
+
+Requires Redis 6.2+ (`GETDEL`). The server pings the cache on startup and refuses to start if it is unreachable. Contract state uses atomic operations (`SET NX`, Lua `EXISTS`+`INCR`, `GETDEL`), so it is safe across multiple instances.
 
 ---
 
@@ -172,4 +216,7 @@ The whitelist rules in `.env.example` may be intentional deviations, but develop
 5. **Configure `PROTECTED_SERVER_HOST`** to the actual backend URL
 6. **Generate `TLS_CERT` and `TLS_KEY`** if using HTTPS
 7. **Review WAF whitelist rules** to avoid blocking legitimate requests
-8. **Monitor in-memory cache** -- the 150-entry limit should have eviction or Redis should be used
+8. **Use Redis for real traffic** -- the in-memory cache (limit 100000, see [03-bugs-and-issues.md](03-bugs-and-issues.md)) is per instance and scans the map when full
+9. **Contract:** keep the WAF private key out of the image and the repo (mount it, `*.key.asc` is gitignored), protect it with `CONTRACT_PRIVATE_KEY_PASSPHRASE`, and keep server clocks in sync (NTP) since `CONTRACT_MAX_AGE_SECONDS` compares against the server clock
+10. **Set `CONTRACT_REQUIRE_BINDING=true`** once the front sends payload v2
+11. **Contract with multiple instances** requires `REDIS_USE=true` (Redis 6.2+); otherwise replay, tokens and blocks are per instance

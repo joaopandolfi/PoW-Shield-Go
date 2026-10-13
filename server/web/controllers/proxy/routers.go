@@ -23,5 +23,9 @@ func (c *controller) SetupRouter(s *server.Server) {
 		handler = middleware.PoW(handler)
 	}
 
+	if config.Get().Contract.Active {
+		handler = middleware.Contract(handler)
+	}
+
 	c.s.R.PathPrefix("/").HandlerFunc(handler)
 }

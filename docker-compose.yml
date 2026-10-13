@@ -15,8 +15,14 @@ services:
       WAF_RULES_FILE: "/app/wafRules.json"
       WAF_TYPES_FILE: "/app/wafTypes.json"
       SESSION_SECURE: "false"
+      REDIS_USE: "true"
+      REDIS_HOST: "redis:6379"
     depends_on:
       - backend
+      - redis
+
+  redis:
+    image: redis:7.4-alpine
 
   backend:
     image: hashicorp/http-echo:1.0.0

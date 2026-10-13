@@ -18,6 +18,7 @@ PoW Shield is a DDoS protection solution for the OSI application layer, function
 - **Cookie/Session/Header Transport**: Flexible session token transport mechanisms
 - **SSL/TLS Support**: Optional TLS termination
 - **IP Tolerance System**: Tracks failed attempts per IP and applies progressive punishment (difficulty increase)
+- **Encrypted Client Contract**: Clients send `gpg_encrypt(version:uuid:timestamp)` in a header; the WAF decrypts it, rejects stale or replayed requests and gates each client id with a PoW challenge whose difficulty grows on abuse (see [sprint1.md](sprint1.md))
 - **Graceful Shutdown**: Proper cleanup on SIGINT/SIGTERM
 
 ## Architecture
@@ -27,11 +28,14 @@ PoW Shield is a DDoS protection solution for the OSI application layer, function
                        |
                   [PoW Shield]
                        |
-          +------------+------------+
-          |           |             |
-        [WAF]       [PoW]        [Static]
-          |           |             |
-       Proxy Layer -> [Backend]
+     +-----------+-----+-----+-----------+
+     |           |           |           |
+ [Contract]    [PoW]       [WAF]     [Static]
+     |           |           |
+     +-----> Rate Limit -> Proxy Layer -> [Backend]
+
+ Contract: decrypts X-Request-Context (OpenPGP), replay check,
+           per-client PoW challenge, state in memory or Redis
 ```
 
 ### Component Structure
@@ -45,11 +49,12 @@ server/
   internal/
     cache/
       cache.go                   # Cache interface, initialization
-      memory.go                  # In-memory LRU cache with GC
-      redis.go                   # Redis backend
+      memory.go                  # In-memory TTL cache with GC (only expired entries are evicted)
+      redis.go                   # Redis backend (SET NX, Lua INCR, GETDEL for atomic ops)
       safe.go                    # Generic type-safe wrapper
       injectable.go              # Late-init panic recovery
       entities.go                # Internal stored struct
+      atomic_test.go             # Concurrency tests for PutIfAbsent/IncrIfExists/GetDel
       *(test).go                 # Unit/integration tests
     request/
       request.go                 # HTTP proxy request builder
@@ -61,6 +66,11 @@ server/
       cookie.go                  # Cookie struct
       waf.go                     # WAF rule domain model
   services/
+    contract/
+      contract.go                # WAF key loading, header decrypt, payload validation
+    appcheck/
+      appcheck.go                # Firebase App Check JWT verification (RS256, cached JWKS)
+      appchecktest/firebase.go   # Fake App Check issuer for tests
     pow/
       generator.go               # PoW problem generator
       verifier.go                # PoW nonce verifier
@@ -76,6 +86,9 @@ server/
     middleware/
       waf.go                     # WAF inspection middleware
       pow.go                     # PoW session validation middleware
+      contract.go                # Encrypted contract + per-client challenge middleware
+      contract_test.go           # Full contract flow on memory and Redis (miniredis)
+      rate_limit.go              # Per-IP rate limit
       identificator.go           # Client IP hashing middleware
       commons.go                 # Shared helpers (cleanAll, blockRequest)
       middleware.go              # Init functions
@@ -88,6 +101,8 @@ server/
       proxy/
         proxy.go                 # Reverse proxy handler
         routers.go               # / route setup
+      attest/
+        attest.go                # POST /v1/handshake: App Check -> WAF key + client id
       health/
         health.go                # Health check endpoint
         routes.go                # /health route setup
@@ -98,6 +113,12 @@ server/
       response.go                # JSON response writer
       session.go                 # CookieStore session management
       cookie.go                  # powShield cookie management
+  e2e/
+    e2e_test.go                  # E2E client (build tag e2e), acts as the front
+    keygen/main.go               # Throwaway WAF key pair for the e2e stack
+e2e/
+  run.sh                         # Builds the docker stack, runs e2e, tears down
+  docker-compose.e2e.yml         # 2 WAF instances + Redis + http-echo
 client/
   solver/
     solver.js                    # Client-sidenonce solver
@@ -121,9 +142,10 @@ Makefile                         # Build targets
 | Cache | go-redis/redis v8 |
 | Sessions | gorilla/sessions (CookieStore) |
 | Security | unrolled/secure |
-| Validation | go-playground/validator |
 | Validation | go-playground/validator v9 |
 | UUID | google/uuid |
+| OpenPGP | ProtonMail/go-crypto |
+| Tests | miniredis (in-process Redis), Docker compose e2e |
 | Client JS | Browserify, create-hash, UglifyJS |
 | WAF Engine | blackwhale (github.com/joaopandolfi/blackwhale) |
 
@@ -141,4 +163,20 @@ make build-front
 
 # Test
 # Access http://localhost:5656/welcome
+make test-backend
+make test-e2e                    # docker: 2 WAF instances + Redis + backend, contract flow
 ```
+
+## Documentation
+
+| Doc | Content |
+|-----|---------|
+| [02-implementation-status.md](02-implementation-status.md) | Component status |
+| [03-bugs-and-issues.md](03-bugs-and-issues.md) | Bugs found and fixed |
+| [04-api-reference.md](04-api-reference.md) | Endpoints and middleware chain |
+| [05-configuration-reference.md](05-configuration-reference.md) | Environment variables |
+| [06-todo-and-recommendations.md](06-todo-and-recommendations.md) | Roadmap |
+| [07-contract-payloads.md](07-contract-payloads.md) | Contract headers, payloads and responses |
+| [sprint1.md](sprint1.md) | Encrypted contract: design, Redis, e2e, limitations |
+| [sprint2.md](sprint2.md) | Per-uuid rate limit, atomic difficulty, request binding |
+| [sprint3.md](sprint3.md) | App Check handshake: WAF key + attested client id |

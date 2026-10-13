@@ -26,6 +26,10 @@ build-backend:
 test-backend:
 	@cd server && $(GO) test ./...
 
+.PHONY: test-e2e
+test-e2e:
+	@./e2e/run.sh
+
 .PHONY: run-backend
 run-backend: 
 	@cd server && ./pow-shield-go
